@@ -1,0 +1,10 @@
+# Virtual environments
+venv/
+env/
+.virtualenv/
+.virtualenvs/
+*/venv/
+*/env/
+*/.venv/
+*/.env/
+virtualhmml/
