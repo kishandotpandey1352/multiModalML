@@ -1,0 +1,2 @@
+srun --partition=gpu --qos=gpu --gres=gpu:1 --pty bash
+

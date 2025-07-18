@@ -1,10 +1,22 @@
-# Virtual environments
-venv/
+# Ignore Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore environment folders
 env/
-.virtualenv/
-.virtualenvs/
-*/venv/
-*/env/
-*/.venv/
-*/.env/
-virtualhmml/
+venv/
+.mml/
+.mml_env/
+
+
+# Ignore dataset folders and outputs
+dataset/
+*.jsonl
+*.pth
+*.png
+*.jpeg
+*.csv
+*.xlsx
+datasets/
