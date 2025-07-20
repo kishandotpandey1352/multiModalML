@@ -5,8 +5,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
-from byte_dataloader import ByteDataset
 from byte_transformer import ByteTransformerClassifier
+from byte_jsonl_dataset import JsonlByteDataset
 
 # Config
 ROOT_DIR = 'dataset'
@@ -17,17 +17,13 @@ LR = 1e-4
 NUM_CLASSES = 4
 PATIENCE = 5
 
-# Dataset and Split
-dataset = ByteDataset(root_dir=ROOT_DIR, input_len=INPUT_LEN)
-total_size = len(dataset)
-train_size = int(0.7 * total_size)
-val_size = int(0.15 * total_size)
-test_size = total_size - train_size - val_size
-train_set, val_set, test_set = random_split(dataset, [train_size, val_size, test_size])
+train_set = JsonlByteDataset("modality_train.jsonl", input_len=2048)
+val_set   = JsonlByteDataset("modality_val.jsonl", input_len=2048)
+test_set  = JsonlByteDataset("modality_test.jsonl", input_len=2048)
 
-train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True)
-val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False)
-test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
+train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
+val_loader   = DataLoader(val_set, batch_size=32, shuffle=False)
+test_loader  = DataLoader(test_set, batch_size=32, shuffle=False)
 
 # Model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

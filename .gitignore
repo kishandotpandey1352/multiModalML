@@ -7,6 +7,7 @@ __pycache__/
 # Ignore environment folders
 env/
 venv/
+mml/
 .mml/
 .mml_env/
 
@@ -19,4 +20,5 @@ dataset/
 *.jpeg
 *.csv
 *.xlsx
+
 datasets/

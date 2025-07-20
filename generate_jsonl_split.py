@@ -5,7 +5,7 @@ from pathlib import Path
 
 # Configuration
 DATASET_ROOT = "dataset"
-OUTPUT_DIR = "./"  # or change to wherever you want to save the .jsonl files
+OUTPUT_DIR = "./"  
 SPLIT_RATIOS = [0.7, 0.15, 0.15]  # train, val, test
 MODALITY_LABELS = ["audio", "image", "text", "table"]
 

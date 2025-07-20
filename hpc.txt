@@ -1,2 +1,13 @@
 srun --partition=gpu --qos=gpu --gres=gpu:1 --pty bash
 
+conda create --name mml python=3.12
+conda activate mml
+
+
+conda install --yes --file new_req.txt
+
+#Training steps
+python train_byte_model.py
+#Prediction steps
+python predict_byte.py dataset/image/0001_G_V_15_A.jpg
+
