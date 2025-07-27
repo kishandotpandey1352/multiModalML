@@ -4,7 +4,7 @@ import os
 
 # === CONFIG ===
 OUTPUT_DIR = "downloaded/dataset/text"
-MAX_FILES = 200
+MAX_FILES = 1000
 DATASET_NAME = "cnn_dailymail"
 CONFIG = "3.0.0"
 TEXT_KEY = "article"

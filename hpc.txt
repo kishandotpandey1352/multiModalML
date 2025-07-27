@@ -11,3 +11,6 @@ python train_byte_model.py
 #Prediction steps
 python predict_byte.py dataset/image/0001_G_V_15_A.jpg
 
+
+python -m tasks.test_masked --dataset text-1000 --notes "Epoch 50, 1000 text files"
+python -m tasks.train_masked 
