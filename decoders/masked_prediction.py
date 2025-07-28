@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class MaskedByteDecoder(nn.Module):
+class MaskedPredictionDecoder(nn.Module):
     def __init__(self, embed_dim=128, vocab_size=256):
         super().__init__()
         self.classifier = nn.Linear(embed_dim, vocab_size)

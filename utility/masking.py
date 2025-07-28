@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-from configuration.config import MASK_PROB, MASK_TOKEN
+from configurations.config import MASK_PROB, MASK_TOKEN
 
 # Masking Utility
 # -----------------------------

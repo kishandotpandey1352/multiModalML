@@ -5,7 +5,7 @@ from loader.text_dataloader import ByteTextDataset
 from utility.masking import mask_input
 from models.autoencoder_factory import autoencoder_factory
 from decoders.masked_prediction import masked_byte_loss
-from configuration import config
+from configurations import config
 from utility.experiment_logger import log_experiment
 import argparse
 
@@ -36,7 +36,7 @@ def tensor_to_display_text(tensor, mask_token=config.MASK_TOKEN):
 # Load model and dataset
 # -----------------------------
 model = autoencoder_factory(task="masked").to(DEVICE)
-model.load_state_dict(torch.load("checkpoints/masked_autoencoder.pt", map_location=DEVICE))
+model.load_state_dict(torch.load("checkpoints/best_masked_autoencoder.pt", map_location=DEVICE))
 model.eval()
 
 dataset = ByteTextDataset(folder_path="dataset/text", seq_len=config.SEQ_LEN)
@@ -56,13 +56,13 @@ original = sample.squeeze()
 masked = masked_input.squeeze()
 predicted = predictions.squeeze()
 
-print("📄 Original (text):")
+print(" Original (text):")
 print(tensor_to_display_text(original))
 
-print("\n🤖 Masked input (with [■]):")
+print("\n Masked input (with [■]):")
 print(tensor_to_display_text(masked))
 
-print("\n🔍 Predicted (text):")
+print("\n Predicted (text):")
 print(tensor_to_display_text(predicted))
 
 # Compute byte-level accuracy
@@ -70,8 +70,8 @@ correct = ((predicted == original) & (labels.squeeze() != -100)).sum().item()
 total = (labels.squeeze() != -100).sum().item()
 accuracy = correct / total if total > 0 else 0
 
-print("\n📊 Evaluation Summary:")
-print(f"✅ Byte-level accuracy on masked tokens: {accuracy:.2%}")
+print("\n Evaluation Summary:")
+print(f"Byte-level accuracy on masked tokens: {accuracy:.2%}")
 
 # Optional: Calculate average loss
 loss = masked_byte_loss(logits, labels).item()
