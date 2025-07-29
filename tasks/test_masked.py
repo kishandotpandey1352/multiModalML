@@ -37,6 +37,7 @@ def tensor_to_display_text(tensor, mask_token=config.MASK_TOKEN):
 # -----------------------------
 model = autoencoder_factory(task="masked").to(DEVICE)
 model.load_state_dict(torch.load("checkpoints/best_masked_autoencoder.pt", map_location=DEVICE))
+# model.load_state_dict(torch.load(config.CHECKPOINT_PATH, map_location=DEVICE))
 model.eval()
 
 dataset = ByteTextDataset(folder_path="dataset/text", seq_len=config.SEQ_LEN)

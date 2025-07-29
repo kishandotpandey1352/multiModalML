@@ -13,6 +13,12 @@ HIDDEN_DIM = 512
 NUM_LAYERS = 8
 NUM_HEADS = 8
 DROPOUT = 0.1
+MODALITY = "text"
+MASK_SPAN_LENGTH = 5    #For spanMasking
+USE_SPAN_MASKING = True #For spanMasking
+# Optional dynamic filename
+MODEL_NAME = f"best_spanmasked_{MODALITY}_{EMBED_DIM}d_{NUM_LAYERS}L.pt"
+CHECKPOINT_PATH = f"checkpoints/{MODEL_NAME}"
 
 # ----- Training -----
 BATCH_SIZE = 16

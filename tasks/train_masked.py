@@ -5,10 +5,18 @@ from configurations import config
 import torch
 from torch.utils.data import DataLoader, random_split
 from loader.text_dataloader import ByteTextDataset
-from utility.masking import mask_input
+# from utility.masking import mask_input
 from models.autoencoder_factory import autoencoder_factory
 from decoders.masked_prediction import masked_byte_loss
 from utility.experiment_logger import log_experiment
+
+if config.USE_SPAN_MASKING:
+    from utility.span_masking import span_mask_input as mask_input
+else:
+    from utility.masking import mask_input
+    
+CHECKPOINT_PATH = config.CHECKPOINT_PATH
+
 
 DEVICE = config.DEVICE
 VAL_SPLIT = 0.1

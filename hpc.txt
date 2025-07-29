@@ -6,11 +6,23 @@ conda activate mml
 
 conda install --yes --file new_req.txt
 
-#Training steps
+#Classifier Training steps
+python generate_json_split.py
 python train_byte_model.py
 #Prediction steps
 python predict_byte.py dataset/image/0001_G_V_15_A.jpg
 
 
+#train the masked model on training dataset
 python -m tasks.test_masked --dataset text-1000 --notes "Epoch 50, 1000 text files"
 python -m tasks.train_masked 
+
+#train the span masked model on training dataset
+python -m tasks.train_spanmasked 
+python -m tasks.test_spanmasked --dataset text-1020 --notes "Span masked, Epoch 50, 1020 text files"
+
+# Data loader::::
+## Training
+python multiModal_dataloader.py --train_dir dataset/audio
+## Prediction
+python multiModal_dataloader.py --predict_file data/abc.wav

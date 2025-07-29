@@ -9,7 +9,7 @@ from byte_transformer import ByteTransformerClassifier
 from byte_jsonl_dataset import JsonlByteDataset
 
 # Config
-ROOT_DIR = 'dataset'
+ROOT_DIR = '../dataset_100'
 INPUT_LEN = 2048
 BATCH_SIZE = 32
 EPOCHS = 50
@@ -75,7 +75,7 @@ for epoch in range(EPOCHS):
     # Early stopping check
     if val_loss < best_val_loss:
         best_val_loss = val_loss
-        torch.save(model.state_dict(), 'best_model.pth')
+        torch.save(model.state_dict(), 'classifier_model.pth')
         patience_counter = 0
     else:
         patience_counter += 1
@@ -84,7 +84,7 @@ for epoch in range(EPOCHS):
             break
 
 # Load best model
-model.load_state_dict(torch.load("best_model.pth"))
+model.load_state_dict(torch.load("classifier_model.pth"))
 
 # Final Evaluation on Test Set
 model.eval()

@@ -22,4 +22,15 @@ dataset/
 *.xlsx
 *.txt
 
+dataset_100/
+*.jsonl
+*.pth
+*.png
+*.jpeg
+*.csv
+*.xlsx
+*.txt
+
+
+
 datasets/

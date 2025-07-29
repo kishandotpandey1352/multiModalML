@@ -4,7 +4,7 @@ import random
 from pathlib import Path
 
 # Configuration
-DATASET_ROOT = "dataset"
+DATASET_ROOT = "../dataset_100"
 OUTPUT_DIR = "./"  
 SPLIT_RATIOS = [0.7, 0.15, 0.15]  # train, val, test
 MODALITY_LABELS = ["audio", "image", "text", "table"]

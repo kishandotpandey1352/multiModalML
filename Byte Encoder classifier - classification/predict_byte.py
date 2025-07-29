@@ -5,7 +5,7 @@ import random
 
 INPUT_LEN = 2048
 LABELS = ['audio', 'image', 'text', 'table']
-MODEL_PATH = 'best_model.pth'
+MODEL_PATH = 'classifier_model.pth'
 
 model = ByteTransformerClassifier(input_len=INPUT_LEN)
 model.load_state_dict(torch.load(MODEL_PATH))
