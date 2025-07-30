@@ -7,15 +7,19 @@ class SpanBoundaryDecoder(nn.Module):
     to predict each token in a masked span.
     Inspired by SpanBERT's Span Boundary Objective (SBO).
     """
-    def __init__(self, embed_dim, vocab_size=256, max_position=512):
+    def __init__(self, config):
         super().__init__()
-        self.ffn = nn.Sequential(
-            nn.Linear(embed_dim * 2 + embed_dim, embed_dim),
-            nn.ReLU(),
-            nn.Linear(embed_dim, vocab_size)
-        )
-        self.embed_pos = nn.Embedding(max_position, embed_dim)
+        self.embed_dim = config.EMBED_DIM
+        self.seq_len = config.SEQ_LEN
+        self.embed_pos = nn.Embedding(2 * config.SEQ_LEN, config.EMBED_DIM)
 
+        self.sbo_layer = nn.Sequential(
+            nn.Linear(self.embed_dim * 3, self.embed_dim),
+            nn.GELU(),
+            nn.Dropout(config.DROPOUT),
+            nn.Linear(self.embed_dim, config.VOCAB_SIZE)
+        )
+        
     def forward(self, left_boundary, right_boundary, relative_positions):
         """
         Arguments:
@@ -27,4 +31,4 @@ class SpanBoundaryDecoder(nn.Module):
         """
         pos_embed = self.embed_pos(relative_positions)  # (N, D)
         concat = torch.cat([left_boundary, right_boundary, pos_embed], dim=-1)  # (N, 3D)
-        return self.ffn(concat)  # (N, vocab_size)
+        return self.sbo_layer(concat)  # (N, vocab_size)

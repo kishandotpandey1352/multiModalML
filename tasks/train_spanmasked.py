@@ -2,29 +2,34 @@ import os
 import torch
 from torch.utils.data import DataLoader, random_split
 from configurations import config
+from loader.multiModal_dataloader import MODALITY_TO_INDEX
 from loader.text_dataloader import ByteTextDataset
+from loader.multiModal_dataloader import MultiModalDataset
 from models.autoencoder_factory import autoencoder_factory
 from decoders.span_boundary_decoder import SpanBoundaryDecoder
 from utility.experiment_logger import log_experiment
 from utility.span_masking import span_mask_input
 import torch.nn.functional as F
+from torch.utils.data import default_collate
 
 DEVICE = config.DEVICE
 VAL_SPLIT = 0.1
 TOTAL_EPOCHS = config.EPOCHS
 PATIENCE = 10
 CHECKPOINT_PATH = f"checkpoints/best_spanboundary_{config.MODALITY}_{config.EMBED_DIM}d_{config.NUM_LAYERS}L.pt"
-
-dataset = ByteTextDataset(folder_path="dataset/text", seq_len=config.SEQ_LEN)
+config.NUM_MODALITIES = len(MODALITY_TO_INDEX)
+# dataset = ByteTextDataset(folder_path="dataset/text", seq_len=config.SEQ_LEN)
+dataset = MultiModalDataset(root_dir="dataset/")
 val_size = int(len(dataset) * VAL_SPLIT)
 train_size = len(dataset) - val_size
 train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=config.BATCH_SIZE)
+# train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True, collate_fn=lambda x: x)
+val_loader = DataLoader(val_dataset, batch_size=config.BATCH_SIZE,shuffle=False, collate_fn=lambda x: x)
 
 encoder = autoencoder_factory(task="encoder").to(DEVICE)
-decoder = SpanBoundaryDecoder(embed_dim=config.EMBED_DIM).to(DEVICE)
+decoder = SpanBoundaryDecoder(config).to(DEVICE)
 
 params = list(encoder.parameters()) + list(decoder.parameters())
 optimizer = torch.optim.Adam(params, lr=config.LR)
@@ -87,11 +92,20 @@ def train_epoch():
     total_correct = 0
     total_tokens = 0
 
+    # for batch in train_loader:
+    #     batch = batch.to(DEVICE)
+    #     masked, labels = span_mask_input(batch, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
+    #     encoded = encoder(masked)
+    #     loss, correct, total = compute_span_loss(encoded, labels, batch)
     for batch in train_loader:
-        batch = batch.to(DEVICE)
-        masked, labels = span_mask_input(batch, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
-        encoded = encoder(masked)
-        loss, correct, total = compute_span_loss(encoded, labels, batch)
+        byte_input = torch.stack([item['byte_input'] for item in batch]).to(DEVICE)
+        mod_index = torch.stack([item['modality_index'] for item in batch]).to(DEVICE)
+        print("mod_index shape:", mod_index.shape)
+        print("max modality index:", mod_index.max().item())
+        print("config.NUM_MODALITIES:", config.NUM_MODALITIES)
+        masked, labels = span_mask_input(byte_input, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
+        encoded = encoder(masked, mod_index)
+        loss, correct, total = compute_span_loss(encoded, labels, byte_input)
 
         optimizer.zero_grad()
         loss.backward()
@@ -100,6 +114,8 @@ def train_epoch():
         total_loss += loss.item()
         total_correct += correct
         total_tokens += total
+        #clear cache of GPU
+        torch.cuda.empty_cache()  # only if using GPU
 
     accuracy = total_correct / total_tokens if total_tokens > 0 else 0
     return total_loss / len(train_loader), accuracy
@@ -114,10 +130,11 @@ def validate():
 
     with torch.no_grad():
         for batch in val_loader:
-            batch = batch.to(DEVICE)
-            masked, labels = span_mask_input(batch, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
-            encoded = encoder(masked)
-            loss, correct, total = compute_span_loss(encoded, labels, batch)
+            byte_input = torch.stack([item['byte_input'] for item in batch]).to(DEVICE)
+            mod_index = torch.stack([item['modality_index'] for item in batch]).to(DEVICE)
+            masked, labels = span_mask_input(byte_input, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
+            encoded = encoder(masked, mod_index)
+            loss, correct, total = compute_span_loss(encoded, labels, byte_input)
 
             total_loss += loss.item()
             total_correct += correct
@@ -139,7 +156,10 @@ for epoch in range(1, TOTAL_EPOCHS + 1):
     if val_acc > best_accuracy:
         best_accuracy = val_acc
         patience_counter = 0
-        torch.save({'encoder': encoder.state_dict(), 'decoder': decoder.state_dict()}, CHECKPOINT_PATH)
+        torch.save({
+            'encoder': encoder.state_dict(),
+            'decoder': decoder.state_dict()
+        }, CHECKPOINT_PATH)        
         print("✅ Best model updated.")
     else:
         patience_counter += 1
