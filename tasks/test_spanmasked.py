@@ -1,85 +1,73 @@
-import torch
+
 import os
+import torch
+import argparse
+from tqdm import tqdm
+from loader.multiModal_dataloader import MultiModalDataset, MODALITY_TO_INDEX
+from torch.utils.data import DataLoader
 from encoder.byte_encoder import ByteEncoder
 from decoders.span_boundary_decoder import SpanBoundaryDecoder
 from utility.span_masking import span_mask_input
-from configurations import config
+import configurations.config as config
 
-DEVICE = config.DEVICE
-MODALITY_TO_INDEX = {'text': 0, 'audio': 1, 'image': 2, 'table': 3}
-test_folder = "dataset/table"
+def evaluate(model_path, modality, data_path):
+    # Validate modality
+    if modality not in MODALITY_TO_INDEX:
+        raise ValueError(f"Unsupported modality '{modality}'. Supported: {list(MODALITY_TO_INDEX.keys())}")
 
-# Initialize models
-encoder = ByteEncoder(config).to(DEVICE)
-decoder = SpanBoundaryDecoder(config).to(DEVICE)
+    # Load model
+    print(f" Loading model from: {model_path}")
+    encoder = ByteEncoder(config).to(config.DEVICE)
+    decoder = SpanBoundaryDecoder(config).to(config.DEVICE)
+    checkpoint = torch.load(model_path, map_location=config.DEVICE)
+    encoder.load_state_dict(checkpoint['encoder'])
+    decoder.load_state_dict(checkpoint['decoder'])
+    encoder.eval()
+    decoder.eval()
 
-checkpoint = torch.load(config.TEST_MODEL_PATH, map_location=DEVICE)
-encoder.load_state_dict(checkpoint['encoder'])
-decoder.load_state_dict(checkpoint['decoder'])
-encoder.eval()
-decoder.eval()
+    # Prepare dataset
+    dataset = MultiModalDataset(data_path, modality=modality, split='test', from_classifier=False)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False, collate_fn=lambda x: x)
 
-total = 0
-correct = 0
+    correct, total = 0, 0
 
-print(f"\nEvaluating all text files in: {test_folder}\n")
-
-for filename in os.listdir(test_folder):
-    if not filename.endswith(".txt"):
-        continue
-
-    filepath = os.path.join(test_folder, filename)
-    modality_name = os.path.basename(os.path.dirname(filepath))
-    mod_index = torch.tensor([MODALITY_TO_INDEX[modality_name]], dtype=torch.long).to(DEVICE)
-
-    with open(filepath, 'rb') as f:
-        byte_data = f.read()
-
-    byte_tensor = torch.tensor(list(byte_data), dtype=torch.long)[:config.SEQ_LEN]
-    input_ids = torch.full((config.SEQ_LEN,), 255, dtype=torch.long)
-    input_ids[:len(byte_tensor)] = byte_tensor
-    input_ids = input_ids.unsqueeze(0).to(DEVICE)
-
+    print(f" Evaluating {len(dataset)} file(s) from '{data_path}' with modality '{modality}'...")
     with torch.no_grad():
-        masked, labels = span_mask_input(
-            input_ids,
-            mask_prob=config.MASK_PROB,
-            max_span_length=config.MASK_SPAN_LENGTH
-        )
-        masked = masked.to(DEVICE)
-        labels = labels.to(DEVICE)
+        for batch in tqdm(dataloader, desc="Evaluating"):
+            batch = batch[0]  # batch size is 1
+            byte_input = batch['byte_input'].unsqueeze(0).to(config.DEVICE)
+            mod_index = batch['modality_index'].unsqueeze(0).to(config.DEVICE)
 
-        encoded = encoder(masked, mod_index)  # (1, seq_len, D)
-        span_mask = labels != -100
-        positions = span_mask.squeeze().nonzero(as_tuple=True)[0]
+            masked, labels = span_mask_input(byte_input, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
+            encoded = encoder(masked, mod_index)
 
-        if len(positions) == 0:
-            continue
-        
-        positions = positions[(positions > 0) & (positions < config.SEQ_LEN - 1)]
-        left_boundary = encoded[0, positions - 1]
-        right_boundary = encoded[0, positions + 1]
-        rel_pos = torch.zeros_like(positions).to(DEVICE)
+            positions = (labels[0] != config.IGNORE_INDEX).nonzero(as_tuple=True)[0]
+            if len(positions) == 0:
+                continue
 
-        logits = decoder(left_boundary, right_boundary, rel_pos)
-        preds = torch.argmax(logits, dim=-1)
+            positions = positions[(positions > 0) & (positions < config.SEQ_LEN - 1)]
+            if len(positions) == 0:
+                continue
 
-        actual_bytes = labels[0, positions].tolist()
-        predicted_bytes = preds.tolist()
+            left_batch = encoded[0, positions - 1]
+            right_batch = encoded[0, positions + 1]
+            
+            rel_pos = torch.zeros(left_batch.size(0), dtype=torch.long, device=left_batch.device)
+            logits = decoder(left_batch, right_batch, rel_pos)
+            preds = logits.argmax(dim=-1)
+            targets = byte_input[0, positions]
 
-        print(f"\n File: {filename}")
-        print("Position | Actual | Predicted | Correct?")
-        print("----------------------------------------")
-        for i, pos in enumerate(positions.tolist()):
-            a, p = actual_bytes[i], predicted_bytes[i]
-            total += 1
-            is_correct = (a == p)
-            correct += is_correct
-            print(f"{pos:8d} | {chr(a) if a != 255 else '?':6} | {chr(p) if p != 255 else '?':9} | {'Correct' if is_correct else 'Incorrect'}")
+            correct += (preds == targets).sum().item()
+            total += targets.size(0)
 
-# Final Accuracy
-print("\n Evaluation Summary:")
-print(f"Total Masked Tokens: {total}")
-print(f"Correct Predictions: {correct}")
-acc = (correct / total * 100) if total > 0 else 0.0
-print(f"Accuracy @ Masked Positions: {acc:.2f}%")
+    accuracy = 100.0 * correct / total if total > 0 else 0.0
+    print(f" Evaluation Complete — Accuracy: {accuracy:.2f}% on {total} tokens.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--checkpoint', type=str, required=True, help="Path to model checkpoint (*.pt)")
+    parser.add_argument('--modality', type=str, required=True, help="Modality (e.g., text, audio, image, etc.)")
+    parser.add_argument('--data_path', type=str, required=True, help="Folder or file path of data")
+    args = parser.parse_args()
+
+    evaluate(model_path=args.checkpoint, modality=args.modality, data_path=args.data_path)

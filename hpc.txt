@@ -20,6 +20,7 @@ python -m tasks.train_masked
 #train the span masked model on training dataset
 python -m tasks.train_spanmasked 
 python -m tasks.test_spanmasked --dataset text-1020 --notes "Span masked, Epoch 50, 1020 text files"
+python -m tasks.test_spanmasked --checkpoint checkpoints/best_spanboundary_text_512d_8L.pt --modality text --data_path manual_test/text 
 
 # Data loader::::
 ## Training

@@ -22,11 +22,14 @@ config.NUM_MODALITIES = len(MODALITY_TO_INDEX)
 dataset = MultiModalDataset(root_dir="dataset/")
 val_size = int(len(dataset) * VAL_SPLIT)
 train_size = len(dataset) - val_size
-train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-
+test_size = int(len(dataset) * 0.1)
+val_size = int(len(dataset) * VAL_SPLIT)
+train_size = len(dataset) - val_size - test_size
+train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
 # train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True)
 train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True, collate_fn=lambda x: x)
 val_loader = DataLoader(val_dataset, batch_size=config.BATCH_SIZE,shuffle=False, collate_fn=lambda x: x)
+test_loader = DataLoader(test_dataset, batch_size=config.BATCH_SIZE, shuffle=False, collate_fn=lambda x: x)
 
 encoder = autoencoder_factory(task="encoder").to(DEVICE)
 decoder = SpanBoundaryDecoder(config).to(DEVICE)
@@ -84,6 +87,27 @@ def compute_span_loss(encoded, labels, input_ids):
     total = targets.size(0)
     return loss, correct, total
 
+def test():
+    encoder.eval()
+    decoder.eval()
+    total_loss = 0
+    total_correct = 0
+    total_tokens = 0
+
+    with torch.no_grad():
+        for batch in test_loader:
+            byte_input = torch.stack([item['byte_input'] for item in batch]).to(DEVICE)
+            mod_index = torch.stack([item['modality_index'] for item in batch]).to(DEVICE)
+            masked, labels = span_mask_input(byte_input, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
+            encoded = encoder(masked, mod_index)
+            loss, correct, total = compute_span_loss(encoded, labels, byte_input)
+
+            total_loss += loss.item()
+            total_correct += correct
+            total_tokens += total
+
+    accuracy = total_correct / total_tokens if total_tokens > 0 else 0
+    print(f"\n Test Accuracy: {accuracy:.2%} | Test Loss: {total_loss / len(test_loader):.4f}")
 
 def train_epoch():
     encoder.train()
@@ -119,6 +143,7 @@ def train_epoch():
 
     accuracy = total_correct / total_tokens if total_tokens > 0 else 0
     return total_loss / len(train_loader), accuracy
+
 
 
 def validate():
@@ -160,11 +185,11 @@ for epoch in range(1, TOTAL_EPOCHS + 1):
             'encoder': encoder.state_dict(),
             'decoder': decoder.state_dict()
         }, CHECKPOINT_PATH)        
-        print("✅ Best model updated.")
+        print(" Best model updated.")
     else:
         patience_counter += 1
         if patience_counter >= PATIENCE:
-            print("⏹️ Early stopping triggered.")
+            print(" Early stopping triggered.")
             break
 
     log_experiment(
@@ -183,3 +208,11 @@ for epoch in range(1, TOTAL_EPOCHS + 1):
         loss=val_loss,
         notes="SpanBERT SBO training"
     )
+    
+print("✅ Training complete. Running final test evaluation...")
+test()
+    
+
+    
+
+
