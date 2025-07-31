@@ -13,7 +13,7 @@ HIDDEN_DIM = 2048
 NUM_LAYERS = 8
 NUM_HEADS = 16
 DROPOUT = 0.1
-MODALITY = "text"
+MODALITY = "multi"
 MASK_SPAN_LENGTH = 10    #For spanMasking
 USE_SPAN_MASKING = True #For spanMasking
 # Optional dynamic filename
@@ -22,7 +22,7 @@ CHECKPOINT_PATH = f"checkpoints/{MODEL_NAME}"
 TEST_MODEL_PATH = CHECKPOINT_PATH
 NUM_MODALITIES = 4
 # ----- Training -----
-BATCH_SIZE = 2
+BATCH_SIZE = 1
 EPOCHS = 100
 LR = 1e-4
 DEVICE = 'cuda' if __import__('torch').cuda.is_available() else 'cpu'

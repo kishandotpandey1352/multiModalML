@@ -11,6 +11,7 @@ from utility.experiment_logger import log_experiment
 from utility.span_masking import span_mask_input
 import torch.nn.functional as F
 from torch.utils.data import default_collate
+import gc
 
 DEVICE = config.DEVICE
 VAL_SPLIT = 0.1
@@ -19,7 +20,7 @@ PATIENCE = 10
 CHECKPOINT_PATH = f"checkpoints/best_spanboundary_{config.MODALITY}_{config.EMBED_DIM}d_{config.NUM_LAYERS}L.pt"
 config.NUM_MODALITIES = len(MODALITY_TO_INDEX)
 # dataset = ByteTextDataset(folder_path="dataset/text", seq_len=config.SEQ_LEN)
-dataset = MultiModalDataset(root_dir="dataset/")
+dataset = MultiModalDataset(data_path="dataset/")
 val_size = int(len(dataset) * VAL_SPLIT)
 train_size = len(dataset) - val_size
 test_size = int(len(dataset) * 0.1)
@@ -27,7 +28,7 @@ val_size = int(len(dataset) * VAL_SPLIT)
 train_size = len(dataset) - val_size - test_size
 train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
 # train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True)
-train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True, collate_fn=lambda x: x)
+train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True, collate_fn=lambda x: x, num_workers=0,pin_memory=False)
 val_loader = DataLoader(val_dataset, batch_size=config.BATCH_SIZE,shuffle=False, collate_fn=lambda x: x)
 test_loader = DataLoader(test_dataset, batch_size=config.BATCH_SIZE, shuffle=False, collate_fn=lambda x: x)
 
@@ -124,9 +125,9 @@ def train_epoch():
     for batch in train_loader:
         byte_input = torch.stack([item['byte_input'] for item in batch]).to(DEVICE)
         mod_index = torch.stack([item['modality_index'] for item in batch]).to(DEVICE)
-        print("mod_index shape:", mod_index.shape)
-        print("max modality index:", mod_index.max().item())
-        print("config.NUM_MODALITIES:", config.NUM_MODALITIES)
+        # print("mod_index shape:", mod_index.shape)
+        # print("max modality index:", mod_index.max().item())
+        # print("config.NUM_MODALITIES:", config.NUM_MODALITIES)
         masked, labels = span_mask_input(byte_input, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
         encoded = encoder(masked, mod_index)
         loss, correct, total = compute_span_loss(encoded, labels, byte_input)
@@ -139,11 +140,14 @@ def train_epoch():
         total_correct += correct
         total_tokens += total
         #clear cache of GPU
-        torch.cuda.empty_cache()  # only if using GPU
+        if torch.cuda.is_available():
+            print(f"[CUDA] Memory Allocated: {torch.cuda.memory_allocated() / 1e6:.2f} MB")
+        del batch
+        torch.cuda.empty_cache()
+        gc.collect()
 
     accuracy = total_correct / total_tokens if total_tokens > 0 else 0
     return total_loss / len(train_loader), accuracy
-
 
 
 def validate():
@@ -193,7 +197,7 @@ for epoch in range(1, TOTAL_EPOCHS + 1):
             break
 
     log_experiment(
-        dataset_name=f"{config.MODALITY}-{len(dataset)}",
+        dataset_name=f"{'multi'}-{len(dataset)}",
         num_files=len(dataset),
         mask_prob=config.MASK_PROB,
         mask_strategy="span-boundary",
@@ -209,7 +213,7 @@ for epoch in range(1, TOTAL_EPOCHS + 1):
         notes="SpanBERT SBO training"
     )
     
-print("✅ Training complete. Running final test evaluation...")
+print("Training complete. Running final test evaluation...")
 test()
     
 

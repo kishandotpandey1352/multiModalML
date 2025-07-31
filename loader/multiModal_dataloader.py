@@ -1,4 +1,3 @@
-
 import os
 import torch
 from torch.utils.data import Dataset
@@ -14,19 +13,14 @@ MODALITY_TO_INDEX = {
 class MultiModalDataset(Dataset):
     def __init__(self, data_path, modality=None, split="train", from_classifier=False):
         self.data_path = Path(data_path)
-        self.files = list(self.data_path.glob("*"))
+        self.files = [f for f in self.data_path.glob("**/*") if f.is_file()]
         self.split = split
         self.from_classifier = from_classifier
         self.modality = modality
 
-        if modality:
-            if modality not in MODALITY_TO_INDEX:
-                raise ValueError(f"Unsupported modality: {modality}")
-            self.modality_index = MODALITY_TO_INDEX[modality]
-        elif from_classifier:
-            raise ValueError("Classifier-based modality detection not implemented in this version.")
-        else:
-            raise ValueError("Modality must be specified unless from_classifier=True is implemented.")
+        # Validate modalities
+        if modality and modality not in MODALITY_TO_INDEX:
+            raise ValueError(f"Unsupported modality: {modality}")
 
     def __len__(self):
         return len(self.files)
@@ -45,8 +39,19 @@ class MultiModalDataset(Dataset):
         else:
             byte_tensor = byte_tensor[:512]
 
+        # Determine modality
+        if self.modality:
+            modality_name = self.modality
+            modality_index = MODALITY_TO_INDEX[self.modality]
+        else:
+            modality_name = file_path.parent.name.lower()
+            modality_index = MODALITY_TO_INDEX.get(modality_name, 0)  # default to 0 if unknown
+
+        # Print debug info
+        print(f"File: {file_path}, modality: {modality_name}, index: {modality_index}")
+
         return {
             "byte_input": byte_tensor,
-            "modality_index": torch.tensor(self.modality_index, dtype=torch.long),
+            "modality_index": torch.tensor(modality_index, dtype=torch.long),
             "file_path": str(file_path)
         }
