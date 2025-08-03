@@ -1,4 +1,3 @@
-
 import os
 import torch
 import argparse
@@ -12,6 +11,7 @@ import configurations.config as config
 
 def evaluate(model_path, modality, data_path):
     # Validate modality
+    config.MODALITY = modality
     if modality not in MODALITY_TO_INDEX:
         raise ValueError(f"Unsupported modality '{modality}'. Supported: {list(MODALITY_TO_INDEX.keys())}")
 
@@ -46,16 +46,20 @@ def evaluate(model_path, modality, data_path):
                 continue
 
             positions = positions[(positions > 0) & (positions < config.SEQ_LEN - 1)]
-            if len(positions) == 0:
-                continue
+            MAX_SPANS = 20
+            if len(positions) > MAX_SPANS:
+                positions = positions[:MAX_SPANS]
 
             left_batch = encoded[0, positions - 1]
             right_batch = encoded[0, positions + 1]
-            
+
             rel_pos = torch.zeros(left_batch.size(0), dtype=torch.long, device=left_batch.device)
             logits = decoder(left_batch, right_batch, rel_pos)
             preds = logits.argmax(dim=-1)
             targets = byte_input[0, positions]
+
+            print(f"Targets: {targets.tolist()}")
+            print(f"Preds: {preds.tolist()}")
 
             correct += (preds == targets).sum().item()
             total += targets.size(0)

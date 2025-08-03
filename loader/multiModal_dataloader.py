@@ -2,6 +2,7 @@ import os
 import torch
 from torch.utils.data import Dataset
 from pathlib import Path
+from configurations import config
 
 MODALITY_TO_INDEX = {
     "text": 0,
@@ -13,14 +14,26 @@ MODALITY_TO_INDEX = {
 class MultiModalDataset(Dataset):
     def __init__(self, data_path, modality=None, split="train", from_classifier=False):
         self.data_path = Path(data_path)
-        self.files = [f for f in self.data_path.glob("**/*") if f.is_file()]
+        self.files = []
         self.split = split
         self.from_classifier = from_classifier
         self.modality = modality
 
-        # Validate modalities
+        # Validate modality
         if modality and modality not in MODALITY_TO_INDEX:
             raise ValueError(f"Unsupported modality: {modality}")
+
+        if modality:
+            modality_path = self.data_path / modality
+            all_files = list(modality_path.glob("**/*"))
+            self.files = all_files[:config.SAMPLE_SIZE]
+        else:
+            # Multimodal case: limit each modality
+            for mod in MODALITY_TO_INDEX:
+                mod_files = list((self.data_path / mod).glob("**/*"))[:config.SAMPLE_SIZE]
+                self.files.extend(mod_files)
+        print(f"Found {len(self.files)} files for modality '{self.modality}' in {self.data_path}")
+
 
     def __len__(self):
         return len(self.files)
@@ -41,13 +54,13 @@ class MultiModalDataset(Dataset):
 
         # Determine modality
         if self.modality:
-            modality_name = self.modality
             modality_index = MODALITY_TO_INDEX[self.modality]
+            modality_name = self.modality
         else:
-            modality_name = file_path.parent.name.lower()
-            modality_index = MODALITY_TO_INDEX.get(modality_name, 0)  # default to 0 if unknown
+            parent_folder = file_path.parent.name.lower()
+            modality_index = MODALITY_TO_INDEX.get(parent_folder, 0)  # default to 0 if unknown
+            modality_name = parent_folder
 
-        # Print debug info
         print(f"File: {file_path}, modality: {modality_name}, index: {modality_index}")
 
         return {

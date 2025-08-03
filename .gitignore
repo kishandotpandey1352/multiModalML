@@ -31,6 +31,15 @@ dataset_100/
 *.xlsx
 *.txt
 
+manual_test/
+*.jsonl
+*.pth
+*.png
+*.jpeg
+*.csv
+*.xlsx
+*.txt
+
 
 
 datasets/

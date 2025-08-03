@@ -27,3 +27,13 @@ python -m tasks.test_spanmasked --checkpoint checkpoints/best_spanboundary_text_
 python multiModal_dataloader.py --train_dir dataset/audio
 ## Prediction
 python multiModal_dataloader.py --predict_file data/abc.wav
+
+
+#iNDIVIDUAL MODALITY Training
+python -m tasks.train_spanmasked --modality text
+python -m tasks.train_spanmasked --modality audio
+python -m tasks.train_spanmasked --modality image
+python -m tasks.train_spanmasked --modality table
+#### Individual TEsting
+python -m tasks.test_spanmasked --checkpoint checkpoints\V1\model.pth --modality table --data_path manual_test\table 
+python -m tasks.test_spanmasked --checkpoint checkpoints\V1\model.pth --modality text --data_path manual_test\

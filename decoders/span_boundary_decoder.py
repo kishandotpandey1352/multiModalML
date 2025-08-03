@@ -1,12 +1,11 @@
+
 import torch
 import torch.nn as nn
 
+# Patched decoder with logging
 class SpanBoundaryDecoder(nn.Module):
-    """
-    SpanBoundaryDecoder uses left and right span boundaries + position embedding
-    to predict each token in a masked span.
-    Inspired by SpanBERT's Span Boundary Objective (SBO).
-    """
+    def debug_shapes(self, hidden_states):
+        print(f"[Decoder] Hidden shape: {hidden_states.shape}")
     def __init__(self, config):
         super().__init__()
         self.embed_dim = config.EMBED_DIM
@@ -14,21 +13,15 @@ class SpanBoundaryDecoder(nn.Module):
         self.embed_pos = nn.Embedding(2 * config.SEQ_LEN, config.EMBED_DIM)
 
         self.sbo_layer = nn.Sequential(
-            nn.Linear(self.embed_dim * 3, self.embed_dim),
+            nn.Linear(self.embed_dim * 3, self.embed_dim * 2),
+            nn.GELU(),
+            nn.Linear(self.embed_dim * 2, self.embed_dim),
             nn.GELU(),
             nn.Dropout(config.DROPOUT),
             nn.Linear(self.embed_dim, config.VOCAB_SIZE)
         )
         
     def forward(self, left_boundary, right_boundary, relative_positions):
-        """
-        Arguments:
-            left_boundary: (N, D) tensor – left span boundary embeddings
-            right_boundary: (N, D) tensor – right span boundary embeddings
-            relative_positions: (N,) – position index of each token in the span (0, 1, 2, ...)
-        Returns:
-            logits: (N, vocab_size)
-        """
-        pos_embed = self.embed_pos(relative_positions)  # (N, D)
-        concat = torch.cat([left_boundary, right_boundary, pos_embed], dim=-1)  # (N, 3D)
-        return self.sbo_layer(concat)  # (N, vocab_size)
+        pos_embed = self.embed_pos(relative_positions)
+        concat = torch.cat([left_boundary, right_boundary, pos_embed], dim=-1)
+        return self.sbo_layer(concat)

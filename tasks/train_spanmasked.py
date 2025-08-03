@@ -1,44 +1,69 @@
-import os
-import torch
-from torch.utils.data import DataLoader, random_split
-from configurations import config
-from loader.multiModal_dataloader import MODALITY_TO_INDEX
-from loader.text_dataloader import ByteTextDataset
+import argparse
+import glob
 from loader.multiModal_dataloader import MultiModalDataset
 from models.autoencoder_factory import autoencoder_factory
 from decoders.span_boundary_decoder import SpanBoundaryDecoder
+import torch.nn.functional as F
+import os
+import torch
+from configurations import config
+from loader.multiModal_dataloader import MODALITY_TO_INDEX
+from loader.text_dataloader import ByteTextDataset
 from utility.experiment_logger import log_experiment
 from utility.span_masking import span_mask_input
-import torch.nn.functional as F
-from torch.utils.data import default_collate
-import gc
+from torch.utils.data import default_collate, DataLoader, random_split
+# ------------------ ARGUMENT PARSING ------------------
+parser = argparse.ArgumentParser()
+parser.add_argument('--modality', type=str, required=True, help="One of: text, audio, image, table")
+args = parser.parse_args()
+config.MODALITY = args.modality
 
-DEVICE = config.DEVICE
-VAL_SPLIT = 0.1
-TOTAL_EPOCHS = config.EPOCHS
-PATIENCE = 10
-CHECKPOINT_PATH = f"checkpoints/best_spanboundary_{config.MODALITY}_{config.EMBED_DIM}d_{config.NUM_LAYERS}L.pt"
-config.NUM_MODALITIES = len(MODALITY_TO_INDEX)
-# dataset = ByteTextDataset(folder_path="dataset/text", seq_len=config.SEQ_LEN)
-dataset = MultiModalDataset(data_path="dataset/")
-val_size = int(len(dataset) * VAL_SPLIT)
-train_size = len(dataset) - val_size
-test_size = int(len(dataset) * 0.1)
-val_size = int(len(dataset) * VAL_SPLIT)
-train_size = len(dataset) - val_size - test_size
-train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
-# train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True)
-train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True, collate_fn=lambda x: x, num_workers=0,pin_memory=False)
-val_loader = DataLoader(val_dataset, batch_size=config.BATCH_SIZE,shuffle=False, collate_fn=lambda x: x)
-test_loader = DataLoader(test_dataset, batch_size=config.BATCH_SIZE, shuffle=False, collate_fn=lambda x: x)
+# ------------------ DEVICE SETUP ------------------
+DEVICE = torch.device(config.DEVICE)
 
+# ------------------ DATASET LOADING ------------------
+train_dataset = MultiModalDataset(data_path="dataset", modality=config.MODALITY, split="train")
+val_dataset = MultiModalDataset(data_path="dataset", modality=config.MODALITY, split="val")
+
+train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=0, pin_memory=False, collate_fn=lambda x: x)
+val_loader = DataLoader(val_dataset, batch_size=config.BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=False, collate_fn=lambda x: x)
+
+# ------------------ MODEL SETUP ------------------
 encoder = autoencoder_factory(task="encoder").to(DEVICE)
 decoder = SpanBoundaryDecoder(config).to(DEVICE)
 
-params = list(encoder.parameters()) + list(decoder.parameters())
-optimizer = torch.optim.Adam(params, lr=config.LR)
+# ------------------ LOAD PREVIOUS CHECKPOINT IF EXISTS ------------------
+# base_ckpt = f"checkpoints/best_spanboundary_{config.MODALITY}_{config.EMBED_DIM}d_{config.NUM_LAYERS}L"
+# existing_ckpts = sorted(glob.glob(f"{base_ckpt}_V*.pt"))
+
+# if existing_ckpts:
+#     last_ckpt = existing_ckpts[-1]
+#     print(f"\n✅ Loading from checkpoint: {last_ckpt}")
+#     ckpt_data = torch.load(last_ckpt)
+#     encoder.load_state_dict(ckpt_data['encoder'])
+#     decoder.load_state_dict(ckpt_data['decoder'])
+#     version = int(last_ckpt.split('_V')[-1].split('.')[0]) + 1
+# else:
+#     print("\n🚨 No checkpoint found, training from scratch")
+#     version = 1
+
+# new_ckpt = f"{base_ckpt}_V{version}.pt"
+# config.CHECKPOINT_PATH = new_ckpt
+# ------------------ LOAD FIXED VERSION CHECKPOINT ------------------
+os.makedirs(config.CHECKPOINT_DIR, exist_ok=True)
+
+if os.path.exists(config.CHECKPOINT_PATH):
+    print(f"\n✅ Loading from {config.CHECKPOINT_PATH}")
+    ckpt_data = torch.load(config.CHECKPOINT_PATH, map_location=DEVICE)
+    encoder.load_state_dict(ckpt_data['encoder'])
+    decoder.load_state_dict(ckpt_data['decoder'])
+else:
+    print("\n🚨 No checkpoint found — starting from scratch")
+# ------------------ OPTIMIZER ------------------
+optimizer = torch.optim.Adam(list(encoder.parameters()) + list(decoder.parameters()), lr=config.LR)
 
 
+# ------------------ TRAINING FUNCTIONS ------------------
 def get_span_positions(labels):
     """Return list of (b, start, end) for each contiguous span in labels != -100"""
     spans = []
@@ -54,8 +79,7 @@ def get_span_positions(labels):
             spans.append((b, start, labels.size(1) - 1))
     return spans
 
-
-def compute_span_loss(encoded, labels, input_ids):
+def compute_span_loss(encoded, labels, input_ids, decoder):
     span_positions = get_span_positions(labels)
     all_logits = []
     all_targets = []
@@ -88,49 +112,19 @@ def compute_span_loss(encoded, labels, input_ids):
     total = targets.size(0)
     return loss, correct, total
 
-def test():
-    encoder.eval()
-    decoder.eval()
-    total_loss = 0
-    total_correct = 0
-    total_tokens = 0
-
-    with torch.no_grad():
-        for batch in test_loader:
-            byte_input = torch.stack([item['byte_input'] for item in batch]).to(DEVICE)
-            mod_index = torch.stack([item['modality_index'] for item in batch]).to(DEVICE)
-            masked, labels = span_mask_input(byte_input, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
-            encoded = encoder(masked, mod_index)
-            loss, correct, total = compute_span_loss(encoded, labels, byte_input)
-
-            total_loss += loss.item()
-            total_correct += correct
-            total_tokens += total
-
-    accuracy = total_correct / total_tokens if total_tokens > 0 else 0
-    print(f"\n Test Accuracy: {accuracy:.2%} | Test Loss: {total_loss / len(test_loader):.4f}")
-
 def train_epoch():
     encoder.train()
     decoder.train()
-    total_loss = 0
-    total_correct = 0
-    total_tokens = 0
+    total_loss, total_correct, total_count = 0, 0, 0
 
-    # for batch in train_loader:
-    #     batch = batch.to(DEVICE)
-    #     masked, labels = span_mask_input(batch, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
-    #     encoded = encoder(masked)
-    #     loss, correct, total = compute_span_loss(encoded, labels, batch)
     for batch in train_loader:
         byte_input = torch.stack([item['byte_input'] for item in batch]).to(DEVICE)
         mod_index = torch.stack([item['modality_index'] for item in batch]).to(DEVICE)
-        # print("mod_index shape:", mod_index.shape)
-        # print("max modality index:", mod_index.max().item())
-        # print("config.NUM_MODALITIES:", config.NUM_MODALITIES)
-        masked, labels = span_mask_input(byte_input, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
+
+        masked, labels = span_mask_input(byte_input)
         encoded = encoder(masked, mod_index)
-        loss, correct, total = compute_span_loss(encoded, labels, byte_input)
+
+        loss, correct, total = compute_span_loss(encoded, labels, byte_input, decoder)
 
         optimizer.zero_grad()
         loss.backward()
@@ -138,85 +132,62 @@ def train_epoch():
 
         total_loss += loss.item()
         total_correct += correct
-        total_tokens += total
-        #clear cache of GPU
-        if torch.cuda.is_available():
-            print(f"[CUDA] Memory Allocated: {torch.cuda.memory_allocated() / 1e6:.2f} MB")
-        del batch
-        torch.cuda.empty_cache()
-        gc.collect()
+        total_count += total
 
-    accuracy = total_correct / total_tokens if total_tokens > 0 else 0
-    return total_loss / len(train_loader), accuracy
-
+    acc = 100. * total_correct / total_count
+    # Diagnostics after batch loop
+    print("Encoder output (mean of last batch):", encoded.mean().item())
+    pred_counts = torch.bincount(byte_input[0], minlength=config.VOCAB_SIZE)
+    top_preds = pred_counts.topk(5)
+    print("Top target tokens:", top_preds.indices.tolist(), "Counts:", top_preds.values.tolist())
+    return total_loss / len(train_loader), acc
 
 def validate():
     encoder.eval()
     decoder.eval()
-    total_loss = 0
-    total_correct = 0
-    total_tokens = 0
+    total_loss, total_correct, total_count = 0, 0, 0
 
     with torch.no_grad():
         for batch in val_loader:
             byte_input = torch.stack([item['byte_input'] for item in batch]).to(DEVICE)
             mod_index = torch.stack([item['modality_index'] for item in batch]).to(DEVICE)
-            masked, labels = span_mask_input(byte_input, mask_prob=config.MASK_PROB, max_span_length=config.MASK_SPAN_LENGTH)
+
+            masked, labels = span_mask_input(byte_input)
             encoded = encoder(masked, mod_index)
-            loss, correct, total = compute_span_loss(encoded, labels, byte_input)
+
+            loss, correct, total = compute_span_loss(encoded, labels, byte_input, decoder)
 
             total_loss += loss.item()
             total_correct += correct
-            total_tokens += total
+            total_count += total
 
-    accuracy = total_correct / total_tokens if total_tokens > 0 else 0
-    return total_loss / len(val_loader), accuracy
+    acc = 100. * total_correct / total_count
+    return total_loss / len(val_loader), acc
 
+# ------------------ TRAIN LOOP ------------------
+best_val_acc = 0.0
+epochs_no_improve = 0
+for epoch in range(config.EPOCHS):
+        print(f"[Diagnostics] Starting Epoch {epoch + 1}")
+        print(f"\n Epoch {epoch+1}/{config.EPOCHS} - Modality: {config.MODALITY}")
 
-best_accuracy = 0
-patience_counter = 0
+        train_loss, train_acc = train_epoch()
+        val_loss, val_acc = validate()
 
-for epoch in range(1, TOTAL_EPOCHS + 1):
-    train_loss, train_acc = train_epoch()
-    val_loss, val_acc = validate()
+        # Save if improved
+        if val_acc > best_val_acc + config.EARLY_STOPPING_DELTA:
+            best_val_acc = val_acc
+            epochs_no_improve = 0
+            torch.save({
+                        'encoder': encoder.state_dict(),
+                        'decoder': decoder.state_dict()
+                    }, config.CHECKPOINT_PATH)
+            print("Checkpoint saved.")
+        else:
+            epochs_no_improve += 1
+            print(f" No improvement for {epochs_no_improve} epoch(s)")
 
-    print(f"[Epoch {epoch}] Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2%} | Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2%}")
-
-    if val_acc > best_accuracy:
-        best_accuracy = val_acc
-        patience_counter = 0
-        torch.save({
-            'encoder': encoder.state_dict(),
-            'decoder': decoder.state_dict()
-        }, CHECKPOINT_PATH)        
-        print(" Best model updated.")
-    else:
-        patience_counter += 1
-        if patience_counter >= PATIENCE:
-            print(" Early stopping triggered.")
+        # --- Early stopping condition ---
+        if epochs_no_improve >= config.EARLY_STOPPING_PATIENCE:
+            print(f"Early stopping triggered after {epoch+1} epochs.")
             break
-
-    log_experiment(
-        dataset_name=f"{'multi'}-{len(dataset)}",
-        num_files=len(dataset),
-        mask_prob=config.MASK_PROB,
-        mask_strategy="span-boundary",
-        embed_dim=config.EMBED_DIM,
-        num_layers=config.NUM_LAYERS,
-        hidden_dim=config.HIDDEN_DIM,
-        num_heads=config.NUM_HEADS,
-        epochs=epoch,
-        batch_size=config.BATCH_SIZE,
-        learning_rate=config.LR,
-        accuracy=val_acc,
-        loss=val_loss,
-        notes="SpanBERT SBO training"
-    )
-    
-print("Training complete. Running final test evaluation...")
-test()
-    
-
-    
-
-
