@@ -1,193 +1,212 @@
-import argparse
-import glob
-from loader.multiModal_dataloader import MultiModalDataset
-from models.autoencoder_factory import autoencoder_factory
-from decoders.span_boundary_decoder import SpanBoundaryDecoder
-import torch.nn.functional as F
+# FINAL CLEANED train_spanmasked.py WITH LOGGING + VALIDATION SPLIT
+
 import os
+import csv
 import torch
-from configurations import config
-from loader.multiModal_dataloader import MODALITY_TO_INDEX
-from loader.text_dataloader import ByteTextDataset
-from utility.experiment_logger import log_experiment
-from utility.span_masking import span_mask_input
-from torch.utils.data import default_collate, DataLoader, random_split
-# ------------------ ARGUMENT PARSING ------------------
-parser = argparse.ArgumentParser()
-parser.add_argument('--modality', type=str, required=True, help="One of: text, audio, image, table")
-args = parser.parse_args()
-config.MODALITY = args.modality
+import random
+from datetime import datetime
+from torch import nn, optim
+from loader.multiModal_dataloader import MultiModalDataset
+from encoder.byte_encoder import ByteEncoder
+from decoders.span_boundary_decoder import SpanBoundaryDecoder
+from configurations.config import config
+from torch.utils.data import DataLoader, random_split
 
-# ------------------ DEVICE SETUP ------------------
-DEVICE = torch.device(config.DEVICE)
+# === Setup ===
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# ------------------ DATASET LOADING ------------------
-train_dataset = MultiModalDataset(data_path="dataset", modality=config.MODALITY, split="train")
-val_dataset = MultiModalDataset(data_path="dataset", modality=config.MODALITY, split="val")
+def span_mask_input(input_tensor, mask_prob=0.6, max_span_length=10):
+    masked = input_tensor.clone()
+    labels = torch.full_like(input_tensor, fill_value=-100)
+    batch_size, seq_len = input_tensor.size()
 
-train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=0, pin_memory=False, collate_fn=lambda x: x)
-val_loader = DataLoader(val_dataset, batch_size=config.BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=False, collate_fn=lambda x: x)
+    for b in range(batch_size):
+        num_masked = 0
+        attempts = 0
+        while num_masked == 0 and attempts < 10:
+            temp_masked = masked[b].clone()
+            temp_labels = labels[b].clone()
+            i = 0
+            while i < seq_len:
+                if random.random() < mask_prob:
+                    span_len = random.randint(1, max_span_length)
+                    span_end = min(i + span_len, seq_len)
+                    temp_labels[i:span_end] = input_tensor[b, i:span_end]
+                    temp_masked[i:span_end] = 0
+                    i = span_end
+                else:
+                    i += 1
+            num_masked = (temp_labels != -100).sum().item()
+            attempts += 1
+        masked[b] = temp_masked
+        labels[b] = temp_labels
+    return masked, labels
 
-# ------------------ MODEL SETUP ------------------
-encoder = autoencoder_factory(task="encoder").to(DEVICE)
-decoder = SpanBoundaryDecoder(config).to(DEVICE)
+# === Model Setup ===
+ckpt_path = 'checkpoints/V1/model.pth'
+os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
+encoder = ByteEncoder(config).to(device)
+decoder = SpanBoundaryDecoder(config).to(device)
 
-# ------------------ LOAD PREVIOUS CHECKPOINT IF EXISTS ------------------
-# base_ckpt = f"checkpoints/best_spanboundary_{config.MODALITY}_{config.EMBED_DIM}d_{config.NUM_LAYERS}L"
-# existing_ckpts = sorted(glob.glob(f"{base_ckpt}_V*.pt"))
-
-# if existing_ckpts:
-#     last_ckpt = existing_ckpts[-1]
-#     print(f"\n✅ Loading from checkpoint: {last_ckpt}")
-#     ckpt_data = torch.load(last_ckpt)
-#     encoder.load_state_dict(ckpt_data['encoder'])
-#     decoder.load_state_dict(ckpt_data['decoder'])
-#     version = int(last_ckpt.split('_V')[-1].split('.')[0]) + 1
-# else:
-#     print("\n🚨 No checkpoint found, training from scratch")
-#     version = 1
-
-# new_ckpt = f"{base_ckpt}_V{version}.pt"
-# config.CHECKPOINT_PATH = new_ckpt
-# ------------------ LOAD FIXED VERSION CHECKPOINT ------------------
-os.makedirs(config.CHECKPOINT_DIR, exist_ok=True)
-
-if os.path.exists(config.CHECKPOINT_PATH):
-    print(f"\n✅ Loading from {config.CHECKPOINT_PATH}")
-    ckpt_data = torch.load(config.CHECKPOINT_PATH, map_location=DEVICE)
+if os.path.exists(ckpt_path):
+    print(f"\n✅ Loading from {ckpt_path}")
+    ckpt_data = torch.load(ckpt_path)
     encoder.load_state_dict(ckpt_data['encoder'])
     decoder.load_state_dict(ckpt_data['decoder'])
 else:
     print("\n🚨 No checkpoint found — starting from scratch")
-# ------------------ OPTIMIZER ------------------
-optimizer = torch.optim.Adam(list(encoder.parameters()) + list(decoder.parameters()), lr=config.LR)
 
+optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()), lr=1e-4)
+criterion = nn.CrossEntropyLoss(ignore_index=-100)
 
-# ------------------ TRAINING FUNCTIONS ------------------
-def get_span_positions(labels):
-    """Return list of (b, start, end) for each contiguous span in labels != -100"""
-    spans = []
-    for b in range(labels.size(0)):
-        start = None
-        for i in range(labels.size(1)):
-            if labels[b, i] != -100 and start is None:
-                start = i
-            elif labels[b, i] == -100 and start is not None:
-                spans.append((b, start, i - 1))
-                start = None
-        if start is not None:
-            spans.append((b, start, labels.size(1) - 1))
-    return spans
+# === Dataset and DataLoaders ===
+full_dataset = MultiModalDataset(data_path='dataset', modality='text', split='train')
+train_size = int(0.9 * len(full_dataset))
+val_size = len(full_dataset) - train_size
+train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
 
-def compute_span_loss(encoded, labels, input_ids, decoder):
-    span_positions = get_span_positions(labels)
-    all_logits = []
-    all_targets = []
+train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
-    for b, start, end in span_positions:
-        if start == 0 or end >= encoded.size(1) - 1:
-            continue  # skip spans without valid boundaries
-        left = encoded[b, start - 1]
-        right = encoded[b, end + 1]
-        span_len = end - start + 1
-        rel_pos = torch.arange(span_len, device=encoded.device)
+# === Logging ===
+modality = 'text'
+num_samples = len(train_dataset)
+epochs = config['epochs']
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        left_batch = left.unsqueeze(0).repeat(span_len, 1)
-        right_batch = right.unsqueeze(0).repeat(span_len, 1)
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+log_path = os.path.join(log_dir, f"{modality}_{num_samples}samples_{epochs}epochs_{timestamp}.csv")
 
-        logits = decoder(left_batch, right_batch, rel_pos)
-        targets = input_ids[b, start:end + 1]
-        all_logits.append(logits)
-        all_targets.append(targets)
+with open(log_path, mode='w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(["epoch", "train_loss", "val_loss", "timestamp"])
 
-    if not all_logits:
-        return torch.tensor(0.0, requires_grad=True).to(DEVICE), 0, 0
+# === Training Loop ===
+best_loss = float('inf')
+no_improve = 0
+patience = 5
 
-    logits = torch.cat(all_logits, dim=0)
-    targets = torch.cat(all_targets, dim=0)
-    loss = F.cross_entropy(logits, targets)
-
-    preds = torch.argmax(logits, dim=-1)
-    correct = (preds == targets).sum().item()
-    total = targets.size(0)
-    return loss, correct, total
-
-def train_epoch():
+for epoch in range(1, epochs + 1):
+    print(f"\n📘 Epoch {epoch}/{epochs}")
     encoder.train()
     decoder.train()
-    total_loss, total_correct, total_count = 0, 0, 0
+    total_train_loss = 0
+    train_batches = 0
 
     for batch in train_loader:
-        byte_input = torch.stack([item['byte_input'] for item in batch]).to(DEVICE)
-        mod_index = torch.stack([item['modality_index'] for item in batch]).to(DEVICE)
+        byte_input = batch['byte_input'].to(device)
+        modality_index = batch['modality_index'].to(device)
+        path = batch['file_path'][0] if 'file_path' in batch else "(unknown)"
 
         masked, labels = span_mask_input(byte_input)
-        encoded = encoder(masked, mod_index)
-
-        loss, correct, total = compute_span_loss(encoded, labels, byte_input, decoder)
+        masked, labels = masked.to(device), labels.to(device)
 
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        hidden = encoder(masked, modality_index)
 
-        total_loss += loss.item()
-        total_correct += correct
-        total_count += total
+        loss = 0
+        count = 0
+        for b in range(hidden.shape[0]):
+            input_ids = byte_input[b]
+            left_batch, right_batch, rel_pos, targets = [], [], [], []
+            i = 0
+            while i < len(labels[b]):
+                if labels[b, i] != -100:
+                    start = i
+                    while i < len(labels[b]) and labels[b, i] != -100:
+                        i += 1
+                    end = i - 1
+                    left = hidden[b, start - 1] if start > 0 else torch.zeros_like(hidden[b, 0])
+                    right = hidden[b, end + 1] if end + 1 < hidden.size(0) else torch.zeros_like(hidden[b, 0])
+                    left_batch.append(left)
+                    right_batch.append(right)
+                    rel_pos.append(end - start + 1)
+                    targets.append(input_ids[start])
+                i += 1
 
-    acc = 100. * total_correct / total_count
-    # Diagnostics after batch loop
-    print("Encoder output (mean of last batch):", encoded.mean().item())
-    pred_counts = torch.bincount(byte_input[0], minlength=config.VOCAB_SIZE)
-    top_preds = pred_counts.topk(5)
-    print("Top target tokens:", top_preds.indices.tolist(), "Counts:", top_preds.values.tolist())
-    return total_loss / len(train_loader), acc
+            if targets:
+                left_batch = torch.stack(left_batch)
+                right_batch = torch.stack(right_batch)
+                rel_pos = torch.tensor(rel_pos, device=device)
+                targets = torch.tensor(targets, device=device)
+                logits = decoder(left_batch, right_batch, rel_pos)
+                loss += criterion(logits, targets)
+                count += 1
 
-def validate():
+        if count > 0:
+            loss = loss / count
+            loss.backward()
+            optimizer.step()
+            total_train_loss += loss.item()
+            train_batches += 1
+
+    avg_train_loss = total_train_loss / max(train_batches, 1)
+
+    # === Validation ===
     encoder.eval()
     decoder.eval()
-    total_loss, total_correct, total_count = 0, 0, 0
-
+    total_val_loss = 0
+    val_batches = 0
     with torch.no_grad():
         for batch in val_loader:
-            byte_input = torch.stack([item['byte_input'] for item in batch]).to(DEVICE)
-            mod_index = torch.stack([item['modality_index'] for item in batch]).to(DEVICE)
-
+            byte_input = batch['byte_input'].to(device)
+            modality_index = batch['modality_index'].to(device)
             masked, labels = span_mask_input(byte_input)
-            encoded = encoder(masked, mod_index)
+            masked, labels = masked.to(device), labels.to(device)
+            hidden = encoder(masked, modality_index)
 
-            loss, correct, total = compute_span_loss(encoded, labels, byte_input, decoder)
+            loss = 0
+            count = 0
+            for b in range(hidden.shape[0]):
+                input_ids = byte_input[b]
+                left_batch, right_batch, rel_pos, targets = [], [], [], []
+                i = 0
+                while i < len(labels[b]):
+                    if labels[b, i] != -100:
+                        start = i
+                        while i < len(labels[b]) and labels[b, i] != -100:
+                            i += 1
+                        end = i - 1
+                        left = hidden[b, start - 1] if start > 0 else torch.zeros_like(hidden[b, 0])
+                        right = hidden[b, end + 1] if end + 1 < hidden.size(0) else torch.zeros_like(hidden[b, 0])
+                        left_batch.append(left)
+                        right_batch.append(right)
+                        rel_pos.append(end - start + 1)
+                        targets.append(input_ids[start])
+                    i += 1
 
-            total_loss += loss.item()
-            total_correct += correct
-            total_count += total
+                if targets:
+                    left_batch = torch.stack(left_batch)
+                    right_batch = torch.stack(right_batch)
+                    rel_pos = torch.tensor(rel_pos, device=device)
+                    targets = torch.tensor(targets, device=device)
+                    logits = decoder(left_batch, right_batch, rel_pos)
+                    loss += criterion(logits, targets)
+                    count += 1
 
-    acc = 100. * total_correct / total_count
-    return total_loss / len(val_loader), acc
+            if count > 0:
+                loss = loss / count
+                total_val_loss += loss.item()
+                val_batches += 1
 
-# ------------------ TRAIN LOOP ------------------
-best_val_acc = 0.0
-epochs_no_improve = 0
-for epoch in range(config.EPOCHS):
-        print(f"[Diagnostics] Starting Epoch {epoch + 1}")
-        print(f"\n Epoch {epoch+1}/{config.EPOCHS} - Modality: {config.MODALITY}")
+    avg_val_loss = total_val_loss / max(val_batches, 1)
 
-        train_loss, train_acc = train_epoch()
-        val_loss, val_acc = validate()
+    # === Logging to CSV ===
+    with open(log_path, mode='a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([epoch, avg_train_loss, avg_val_loss, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
-        # Save if improved
-        if val_acc > best_val_acc + config.EARLY_STOPPING_DELTA:
-            best_val_acc = val_acc
-            epochs_no_improve = 0
-            torch.save({
-                        'encoder': encoder.state_dict(),
-                        'decoder': decoder.state_dict()
-                    }, config.CHECKPOINT_PATH)
-            print("Checkpoint saved.")
-        else:
-            epochs_no_improve += 1
-            print(f" No improvement for {epochs_no_improve} epoch(s)")
+    # === Early Stopping and Checkpointing ===
+    if avg_val_loss < best_loss:
+        print("✅ Checkpoint saved.")
+        torch.save({"encoder": encoder.state_dict(), "decoder": decoder.state_dict()}, ckpt_path)
+        best_loss = avg_val_loss
+        no_improve = 0
+    else:
+        no_improve += 1
+        print(f"⚠️ No improvement for {no_improve} epoch(s)")
 
-        # --- Early stopping condition ---
-        if epochs_no_improve >= config.EARLY_STOPPING_PATIENCE:
-            print(f"Early stopping triggered after {epoch+1} epochs.")
-            break
+    if no_improve >= patience:
+        print(f"⏹️ Early stopping triggered after {epoch} epochs.")
+        break

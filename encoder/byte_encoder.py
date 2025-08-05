@@ -5,22 +5,22 @@ import torch.nn as nn
 class ByteEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.embed_dim = config.EMBED_DIM
-        self.byte_embedding = nn.Embedding(config.VOCAB_SIZE, config.EMBED_DIM)
-        self.positional_encoding = PositionalEncoding(config.EMBED_DIM, config.DROPOUT, config.SEQ_LEN)
-        self.modality_embedding = nn.Embedding(config.NUM_MODALITIES, config.EMBED_DIM)
+        self.embed_dim = config['embed_dim']
+        self.byte_embedding = nn.Embedding(config['vocab_size'], config['embed_dim'])
+        self.positional_encoding = PositionalEncoding(config['embed_dim'], config['dropout'], config['seq_len'])
+        self.modality_embedding = nn.Embedding(config['num_modalities'], config['embed_dim'])
 
-        self.ln = nn.LayerNorm(config.EMBED_DIM)
-        self.dropout = nn.Dropout(config.DROPOUT)
+        self.ln = nn.LayerNorm(config['embed_dim'])
+        self.dropout = nn.Dropout(config['dropout'])
 
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=config.EMBED_DIM,
-            nhead=config.NUM_HEADS,
-            dim_feedforward=config.HIDDEN_DIM,
-            dropout=config.DROPOUT,
+            d_model=config['embed_dim'],
+            nhead=config['num_heads'],
+            dim_feedforward=config['hidden_dim'],
+            dropout=config['dropout'],
             activation='gelu'
         )
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=config.NUM_LAYERS)
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=config['num_layers'])
 
     def forward(self, x, modality_index):
         byte_emb = self.byte_embedding(x)              # (B, L, D)

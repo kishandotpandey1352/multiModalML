@@ -8,17 +8,17 @@ class SpanBoundaryDecoder(nn.Module):
         print(f"[Decoder] Hidden shape: {hidden_states.shape}")
     def __init__(self, config):
         super().__init__()
-        self.embed_dim = config.EMBED_DIM
-        self.seq_len = config.SEQ_LEN
-        self.embed_pos = nn.Embedding(2 * config.SEQ_LEN, config.EMBED_DIM)
+        self.embed_dim = config['embed_dim']
+        self.seq_len = config['seq_len']
+        self.embed_pos = nn.Embedding(2 * config['seq_len'], config['embed_dim'])
 
         self.sbo_layer = nn.Sequential(
             nn.Linear(self.embed_dim * 3, self.embed_dim * 2),
             nn.GELU(),
             nn.Linear(self.embed_dim * 2, self.embed_dim),
             nn.GELU(),
-            nn.Dropout(config.DROPOUT),
-            nn.Linear(self.embed_dim, config.VOCAB_SIZE)
+            nn.Dropout(config['dropout']),
+            nn.Linear(self.embed_dim, config['vocab_size'])
         )
         
     def forward(self, left_boundary, right_boundary, relative_positions):

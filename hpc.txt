@@ -37,3 +37,7 @@ python -m tasks.train_spanmasked --modality table
 #### Individual TEsting
 python -m tasks.test_spanmasked --checkpoint checkpoints\V1\model.pth --modality table --data_path manual_test\table 
 python -m tasks.test_spanmasked --checkpoint checkpoints\V1\model.pth --modality text --data_path manual_test\
+
+### Training from scratch again:
+python -m tasks.train_spanmasked --modality text
+python -m tasks.test_spanmasked --checkpoint checkpoints/V1/model.pth --modality text --data_path manual_test/
