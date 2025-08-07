@@ -1,7 +1,7 @@
 
 import os
 import requests
-from datasets import load_dataset
+from datasets_xx import load_dataset
 from bs4 import BeautifulSoup
 
 os.makedirs("dataset/text/gutenberg", exist_ok=True)
