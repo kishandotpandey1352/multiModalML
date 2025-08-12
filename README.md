@@ -1,14 +1,33 @@
-# multiModalML
-This repo is especially dedicated to the multi modal ML project.
 
-## Clustering datasets
-### Virtual env creation and activation
-python -m venv virtualHMML
+# multiModal — Byte-level fine-tuning (AG News)
 
-cd virtualHMML
+This mirrors your **byte pre-training**:
+- Inputs are **0..255** bytes
+- PAD/MASK token = **255**
+- Encoder = your `ByteEncoder(config)` (mean-pooled)
+- Avoids namespace collision by importing Hugging Face as `import datasets as hf_datasets` inside our local `datasets/*`
 
-.\Scripts\activate.bat
-<<<<<<< HEAD
+## Layout
+```
+multiModal/
+├── encoder/byte_encoder.py
+├── heads/byte_classifier.py
+├── datasets/agnews_hf.py
+├── utils/config.py
+├── train_task.py           # universal trainer
+└── tasks/fine_tune_agnews.py
+```
 
-=======
->>>>>>> 614973f961217176cee55a149ec7f070a08117e2
+## Quick start
+```bash
+pip install datasets
+python tasks/fine_tune_agnews.py
+# or
+python train_task.py
+```
+
+It will try to load your pre-trained encoder from `checkpoints/V1/model.pth` and fine-tune on Hugging Face AG News.
+Checkpoints land in `checkpoints/`:
+- `shared_encoder_finetuned.pth`
+- `agnews_head.pth`
+and best_* variants based on validation accuracy.

@@ -1,7 +1,7 @@
 srun --partition=gpu --qos=gpu --gres=gpu:1 --pty bash
 
 conda create --name mml_env python=3.12
-conda activate mml
+conda activate mml_env
 
 
 conda install --yes --file new_req.txt
@@ -38,7 +38,7 @@ python -m tasks.train_spanmasked --modality table
 python -m tasks.test_spanmasked --checkpoint checkpoints\V1\model.pth --modality table --data_path manual_test\table 
 python -m tasks.test_spanmasked --checkpoint checkpoints\V1\model.pth --modality text --data_path manual_test\
 
-### Training from scratch again:
+### pre-Training from scratch again:
 python -m tasks.train_spanmasked --modality text
 python -m tasks.test_spanmasked --checkpoint checkpoints/V1/model.pth --modality text --data_path manual_test/
 
@@ -48,6 +48,9 @@ conda create --name mml_env python=3.10
 conda activate mml_env
 conda env list
 
-### fine tuning
+### fine tuning on agnewsc classificatio task
 python -m tasks.fine_tune_agnews
+
+### fine tuning on NER on text data
+
 

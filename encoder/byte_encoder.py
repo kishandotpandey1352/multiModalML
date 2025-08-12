@@ -4,46 +4,25 @@ import torch.nn as nn
 
 class ByteEncoder(nn.Module):
     def __init__(self, config):
-        super().__init__()
-        self.embed_dim = config['embed_dim']
-        self.byte_embedding = nn.Embedding(config['vocab_size'], config['embed_dim'])
-        self.positional_encoding = PositionalEncoding(config['embed_dim'], config['dropout'], config['seq_len'])
-        self.modality_embedding = nn.Embedding(config['num_modalities'], config['embed_dim'])
-
-        self.ln = nn.LayerNorm(config['embed_dim'])
-        self.dropout = nn.Dropout(config['dropout'])
+        super(ByteEncoder, self).__init__()
+        self.embed_dim = config["embed_dim"]
+        self.max_length = config["max_length"]
+        self.byte_embedding = nn.Embedding(256, self.embed_dim)
+        self.positional_embedding = nn.Parameter(torch.zeros(1, self.max_length, self.embed_dim))
 
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=config['embed_dim'],
-            nhead=config['num_heads'],
-            dim_feedforward=config['hidden_dim'],
-            dropout=config['dropout'],
-            activation='gelu'
+            d_model=self.embed_dim,
+            nhead=config["nhead"],
+            dim_feedforward=config["dim_feedforward"],
+            dropout=config["dropout"],
+            batch_first=True
         )
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=config['num_layers'])
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=config["num_layers"])
 
-    def forward(self, x, modality_index):
-        byte_emb = self.byte_embedding(x)              # (B, L, D)
-        pos_emb = self.positional_encoding(byte_emb)   # (B, L, D)
-        modality_index = modality_index.clamp(0, self.modality_embedding.num_embeddings - 1)
-        mod_emb = self.modality_embedding(modality_index.long()).unsqueeze(1).expand_as(pos_emb)  # (B, L, D)
-        emb = self.dropout(self.ln(pos_emb + mod_emb))  # Normalize + Dropout
-        emb = emb.permute(1, 0, 2)                      # (L, B, D)
-        encoded = self.encoder(emb)                     # (L, B, D)
-        return encoded.permute(1, 0, 2)                 # (B, L, D)
-
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, dropout=0.1, max_len=512):
-        super().__init__()
-        self.dropout = nn.Dropout(p=dropout)
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x):
-        x = x + self.pe[:, :x.size(1), :]
-        return self.dropout(x)
+    def forward(self, byte_input):
+        # byte_input: (B, L) ints 0..255 (255 may be PAD/MASK)
+        B, L = byte_input.shape
+        x = self.byte_embedding(byte_input)  # (B, L, D)
+        x = x + self.positional_embedding[:, :L, :]
+        x = self.transformer_encoder(x)      # (B, L, D)
+        return x.mean(dim=1)                 # (B, D), mean pool like pretraining
