@@ -71,3 +71,7 @@ use_hf_streaming = True  # if you want zero on-disk downloads
 
 ## fine tuning :: 
 python fine_tune_sum_extractive.py
+
+### Image classifier - fine tuning
+python fine_tune_img_cls.py
+
