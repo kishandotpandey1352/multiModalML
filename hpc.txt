@@ -82,6 +82,5 @@ python fine_tune_img_cls_fewshot.py
 # Full data (your existing pipeline)
 python fine_tune_img_cls_full.py
 
-What are the fine tuning available and can be quickly done for audio datasets? 
-
-Help me write scripts to train the audio data without actually downloading them. And make sure the scripts fro audio fine tuning does not impact the existing fine tuning code cfor text and image modality.
+### Audio finetuning
+python fine_tune_audio_cls_parquet.py
