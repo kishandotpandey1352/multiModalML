@@ -69,9 +69,12 @@ def evaluate(model_path, modality, data_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--checkpoint', type=str, required=True, help="Path to model checkpoint (*.pt)")
-    parser.add_argument('--modality', type=str, required=True, help="Modality (e.g., text, audio, image, etc.)")
-    parser.add_argument('--data_path', type=str, required=True, help="Folder or file path of data")
+    parser.add_argument('--modality', type=str, default=config['modality'])
+    parser.add_argument('--data_path', type=str, default=config['data_path'])
+    parser.add_argument('--checkpoint', type=str, default=config['checkpoint_path'])
     args = parser.parse_args()
 
+    modality = args.modality
+    ckpt_path = args.checkpoint
+    full_dataset = MultiModalDataset(data_path=args.data_path, modality=modality, split='train')
     evaluate(model_path=args.checkpoint, modality=args.modality, data_path=args.data_path)
