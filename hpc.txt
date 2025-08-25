@@ -51,3 +51,9 @@ conda env list
 ### fine tuning on agnewsc classificatio task
 python -m tasks.fine_tune_agnews
 
+###
+python train_spanmasked.py --modality audio --data_path dataset --checkpoint checkpoints/V1/model.pth
+
+python train_spanmasked.py --modality image --data_path dataset --checkpoint checkpoints/V1/model.pth
+python train_spanmasked.py --modality table --data_path dataset --checkpoint checkpoints/V1/model.pth
+

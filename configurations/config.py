@@ -1,3 +1,5 @@
+# configurations/config.py
+
 SEQ_LEN = 1024
 VOCAB_SIZE = 256
 MASK_PROB = 0.15
@@ -19,13 +21,14 @@ TEST_MODEL_PATH = 'checkpoints/V1/model.pth'
 NUM_MODALITIES = 4
 EARLY_STOPPING_PATIENCE = 5
 EARLY_STOPPING_DELTA = 0.001
-SAMPLE_SIZE = -1
+SAMPLE_SIZE = 10000
 BATCH_SIZE = 1
 EPOCHS = 10
 LR = 0.0001
 DEVICE = 'cuda'
 DATA_PATH = 'dataset'
 
+# Dict form used by new code paths (trainer/encoder)
 config = {
     "seq_len": SEQ_LEN,
     "vocab_size": VOCAB_SIZE,
