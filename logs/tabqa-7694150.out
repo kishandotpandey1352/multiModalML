@@ -1,0 +1,47 @@
+[cfg] TabQAConfig(csv_path='data/adult.csv', use_header=True, delimiter=',', selector_cols=['age', 'education', 'marital-status'], target_cols=['hours-per-week', 'capital-gain', 'occupation'], val_ratio=0.1, min_selectors=1, max_selectors=4, avoid_id_like=True, max_rows_per_table=50000, src_max_len=1024, pad_token=255, remap_255_to=254, add_schema_header=True, include_date_decompose=True, epochs=5, train_batch_size=24, val_batch_size=16, amp=False, lr_head=0.002, weight_decay=0.01, clip_grad_norm=1.0, seed=42, log_every_n=10, train_steps_per_epoch=50, val_steps=10, init_checkpoint='checkpoints/V1/model.pth', encoder_config_path=None, encoder_config_class=None, save_dir='checkpoints/tab_qa_adult', save_head_as='tab_qa_span_head.pth', csv_log_path='logs/tab_qa_adult.csv')
+[paths] save_dir: /users/acp24kp/finetuning/multiModalML/checkpoints/tab_qa_adult
+[paths] csv_log_path: /users/acp24kp/finetuning/multiModalML/logs/tab_qa_adult.csv
+[device] selected=cuda  available=True
+[cuda] visible=0
+[cuda] count=1  name=NVIDIA A100-SXM4-80GB
+[setup] building first batch to infer hidden dim...
+[train] first batch: {'input_ids': 'tensor(24, 1024) torch.int64', 'attention_mask': 'tensor(24, 1024) torch.int64', 'start_idx': 'tensor(24,) torch.int64', 'end_idx': 'tensor(24,) torch.int64', 'answer_text': 'list(len=24)'}
+[model] hidden_dim D=512
+[setup] starting training...
+[gpu] seq.device=cuda:0  alloc=148.2MB  reserved=509.6MB
+[train] step 10 fetch=0.0ms fw=65.1ms loss=9.1902
+[train] step 20 fetch=0.1ms fw=67.3ms loss=7.6938
+[train] step 30 fetch=0.1ms fw=48.1ms loss=7.1641
+[train] step 40 fetch=0.1ms fw=66.1ms loss=6.9018
+[train] step 50 fetch=0.1ms fw=79.8ms loss=6.7422
+[epoch 1] train_loss=6.7422  val_loss=6.1024  EM=0.000  F1=0.084
+[ckpt] Saved best span head → checkpoints/tab_qa_adult/tab_qa_span_head.pth
+[gpu] seq.device=cuda:0  alloc=148.2MB  reserved=788.5MB
+[train] step 10 fetch=0.1ms fw=66.9ms loss=6.0836
+[train] step 20 fetch=0.0ms fw=76.9ms loss=6.1133
+[train] step 30 fetch=0.1ms fw=69.2ms loss=6.1017
+[train] step 40 fetch=0.1ms fw=67.3ms loss=6.1056
+[train] step 50 fetch=0.0ms fw=48.2ms loss=6.0937
+[epoch 2] train_loss=6.0937  val_loss=6.1104  EM=0.000  F1=0.086
+[gpu] seq.device=cuda:0  alloc=148.2MB  reserved=788.5MB
+[train] step 10 fetch=0.1ms fw=69.5ms loss=6.1234
+[train] step 20 fetch=0.1ms fw=77.7ms loss=6.1240
+[train] step 30 fetch=0.1ms fw=80.4ms loss=6.1130
+[train] step 40 fetch=0.1ms fw=76.7ms loss=6.1101
+[train] step 50 fetch=0.1ms fw=76.1ms loss=6.1156
+[epoch 3] train_loss=6.1156  val_loss=5.9982  EM=0.000  F1=0.096
+[gpu] seq.device=cuda:0  alloc=148.2MB  reserved=788.5MB
+[train] step 10 fetch=0.1ms fw=67.4ms loss=6.0898
+[train] step 20 fetch=0.0ms fw=48.6ms loss=6.1026
+[train] step 30 fetch=0.1ms fw=65.6ms loss=6.0817
+[train] step 40 fetch=0.1ms fw=75.7ms loss=6.0929
+[train] step 50 fetch=0.1ms fw=76.3ms loss=6.0922
+[epoch 4] train_loss=6.0922  val_loss=6.0894  EM=0.000  F1=0.096
+[gpu] seq.device=cuda:0  alloc=148.2MB  reserved=788.5MB
+[train] step 10 fetch=0.1ms fw=77.4ms loss=6.0632
+[train] step 20 fetch=0.1ms fw=77.7ms loss=6.0755
+[train] step 30 fetch=0.1ms fw=62.6ms loss=6.0861
+[train] step 40 fetch=0.1ms fw=65.3ms loss=6.0859
+[train] step 50 fetch=0.1ms fw=77.8ms loss=6.0808
+[epoch 5] train_loss=6.0808  val_loss=6.1063  EM=0.000  F1=0.103
+[ckpt] Saved last span head → checkpoints/tab_qa_adult/last_head.pth

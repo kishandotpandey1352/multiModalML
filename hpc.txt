@@ -84,3 +84,29 @@ python fine_tune_img_cls_full.py
 
 ### Audio finetuning
 python fine_tune_audio_cls_parquet.py
+
+### table QA - fine tuning
+python fine_tune_tab_qa.py
+
+sed -i 's/\r$//' /users/acp24kp/finetuning/multiModalML/run_tab_qa_srun.sh
+chmod +x /users/acp24kp/finetuning/multiModalML/run_tab_qa_srun.sh
+/users/acp24kp/finetuning/multiModalML/run_tab_qa_srun.sh
+
+
+sbatch /users/acp24kp/finetuning/multiModalML/run_tab_qa.slurm
+
+squeue -j 7684927
+scancel 7669593
+srun --jobid=7690845 nvidia-smi
+
+
+find /users/acp24kp -type f -name "tab_qa_span_head.pth"
+
+sbatch --chdir=/users/acp24kp/finetuning/multiModalML \
+  --output=logs/tabqa-%j.out --error=logs/tabqa-%j.err \
+  run_tab_qa.slurm
+
+
+srun --jobid=7689719 nvidia-smi
+squeue -j 7689719
+

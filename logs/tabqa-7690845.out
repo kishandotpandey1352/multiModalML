@@ -1,0 +1,12 @@
+[cfg] TabQAConfig(csv_path='data/adult.csv', use_header=True, delimiter=',', selector_cols=['age', 'education', 'marital-status'], target_cols=['hours-per-week', 'capital-gain', 'occupation'], val_ratio=0.1, min_selectors=1, max_selectors=4, avoid_id_like=True, max_rows_per_table=50000, src_max_len=1024, pad_token=255, remap_255_to=254, add_schema_header=True, include_date_decompose=True, epochs=1, train_batch_size=16, val_batch_size=16, amp=False, lr_head=0.002, weight_decay=0.01, clip_grad_norm=1.0, seed=42, log_every_n=10, train_steps_per_epoch=50, val_steps=10, init_checkpoint='checkpoints/V1/model.pth', encoder_config_path=None, encoder_config_class=None, save_dir='checkpoints/tab_qa_adult', save_head_as='tab_qa_span_head.pth', csv_log_path='logs/tab_qa_adult.csv')
+[paths] save_dir: /users/acp24kp/finetuning/multiModalML/checkpoints/tab_qa_adult
+[paths] csv_log_path: /users/acp24kp/finetuning/multiModalML/logs/tab_qa_adult.csv
+[device] selected=cuda  available=True
+[cuda] visible=0
+[cuda] count=1  name=NVIDIA A100-SXM4-80GB
+[setup] building first batch to infer hidden dim...
+[train] first batch: {'input_ids': 'tensor(16, 1024) torch.int64', 'attention_mask': 'tensor(16, 1024) torch.int64', 'start_idx': 'tensor(16,) torch.int64', 'end_idx': 'tensor(16,) torch.int64', 'answer_text': 'list(len=16)'}
+[model] hidden_dim D=512
+[setup] starting training...
+[gpu] seq.device=cuda:0  alloc=131.3MB  reserved=375.4MB
+[train] step 10 loss=9.2437 dt=786.36s seen=160
