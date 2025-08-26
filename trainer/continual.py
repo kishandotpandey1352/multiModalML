@@ -10,83 +10,49 @@ class ReplayBuffer:
         self.storage = defaultdict(lambda: deque(maxlen=max_per_modality))
 
     def add_batch(self, modality_name: str, file_path: str, byte_tensor: torch.Tensor):
-        # store CPU copy
         self.storage[modality_name].append((file_path, byte_tensor.detach().cpu()))
 
     def sample(self, batch_size: int = 1):
-        modalities = [m for m in self.storage if len(self.storage[m]) > 0]
-        if not modalities:
-            return None
-        picks = []
+        mods = [m for m in self.storage if len(self.storage[m]) > 0]
+        if not mods: return None
+        out = []
         for _ in range(batch_size):
-            m = random.choice(modalities)
-            fp, bt = random.choice(list(self.storage[m]))
-            picks.append((m, fp, bt))
-        return picks
+            m = random.choice(mods)
+            out.append(random.choice(list(self.storage[m])))
+        return out
 
 def feature_distillation_loss(curr_features: torch.Tensor,
                               old_features: torch.Tensor) -> torch.Tensor:
-    """
-    MSE over token features (B, L, D). Shapes must match.
-    """
     return F.mse_loss(curr_features, old_features)
 
 def compute_fisher_diag(model, data_iter, device, n_steps: int = 200):
-    """
-    Estimate diagonal Fisher using a simple proxy scalar loss that flows through
-    the encoder outputs. Requires grads ON (no torch.no_grad).
-    Expects each batch to be a dict with keys: 'byte_input', 'modality_index'.
-    """
     model.train()
     fisher = {n: torch.zeros_like(p, device=device)
-              for n, p in model.named_parameters() if p.requires_grad}
+              for n,p in model.named_parameters() if p.requires_grad}
     steps = 0
-
     for batch in data_iter:
-        if steps >= n_steps:
-            break
-
-        b = batch
-        byte_input = b["byte_input"]
-        mod_idx    = b["modality_index"]
-        # normalize to batch first
-        if byte_input.dim() == 1:
-            byte_input = byte_input.unsqueeze(0)
-        if mod_idx.dim() == 0:
-            mod_idx = mod_idx.unsqueeze(0)
-
-        byte_input = byte_input.to(device)
-        mod_idx    = mod_idx.to(device)
-
-        out = model(byte_input, mod_idx)  # (B, L, D)
-        # simple proxy scalar loss that touches the whole graph
-        loss = (out ** 2).mean()
-
+        if steps >= n_steps: break
+        x = batch["byte_input"]; m = batch["modality_index"]
+        if x.dim() == 1: x = x.unsqueeze(0)
+        if m.dim() == 0: m = m.unsqueeze(0)
+        x = x.to(device); m = m.to(device)
+        out = model(x, m)            # (B, L, D)
+        loss = (out ** 2).mean()     # proxy scalar
         for p in model.parameters():
-            if p.grad is not None:
-                p.grad = None
+            if p.grad is not None: p.grad = None
         loss.backward()
-
-        for (n, p) in model.named_parameters():
+        for (n,p) in model.named_parameters():
             if p.grad is not None and p.requires_grad:
                 fisher[n] += p.grad.detach() ** 2
-
         steps += 1
-
     if steps > 0:
-        for n in fisher:
-            fisher[n] /= steps
-
+        for n in fisher: fisher[n] /= steps
     return fisher
 
-def ewc_penalty(model, prev_params, fisher, lam: float = 1000.0) -> torch.Tensor:
-    """
-    Device-safe EWC penalty: moves snapshots to p.device on the fly.
-    """
+def ewc_penalty(model, prev_params, fisher, lam: float = 50.0) -> torch.Tensor:
     penalty = torch.tensor(0.0, device=next(model.parameters()).device)
-    if prev_params is None or fisher is None:
-        return penalty
-    for (n, p) in model.named_parameters():
+    if prev_params is None or fisher is None: return penalty
+    for (n,p) in model.named_parameters():
         if p.requires_grad and (n in prev_params) and (n in fisher):
             prev = prev_params[n].to(p.device, non_blocking=True)
             fis  = fisher[n].to(p.device, non_blocking=True)
