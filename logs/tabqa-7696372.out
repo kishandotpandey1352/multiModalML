@@ -1,0 +1,226 @@
+[cfg] TabQAConfig(csv_path='data/adult.csv', use_header=True, delimiter=',', selector_cols=['age', 'education', 'marital-status'], target_cols=['hours-per-week', 'capital-gain', 'occupation'], val_ratio=0.1, min_selectors=1, max_selectors=4, avoid_id_like=True, max_rows_per_table=50000, src_max_len=1024, pad_token=255, remap_255_to=254, add_schema_header=False, include_date_decompose=True, epochs=5, train_batch_size=32, val_batch_size=16, amp=False, lr_head=0.001, weight_decay=0.01, clip_grad_norm=1.0, seed=42, log_every_n=10, train_steps_per_epoch=200, val_steps=10, init_checkpoint='checkpoints/V1/model.pth', encoder_config_path=None, encoder_config_class=None, save_dir='checkpoints/tab_qa_adult', save_head_as='tab_qa_span_head.pth', csv_log_path='logs/tab_qa_adult.csv', num_workers_train=4, num_workers_val=2, prefetch_factor=2, unfreeze_n_layers=1, debug_label_check=False)
+[paths] save_dir: /users/acp24kp/finetuning/multiModalML/checkpoints/tab_qa_adult
+[paths] csv_log_path: /users/acp24kp/finetuning/multiModalML/logs/tab_qa_adult.csv
+[device] selected=cuda  available=True
+[cuda] visible=0
+[cuda] count=1  name=NVIDIA A100-SXM4-80GB
+[encoder] unfreeze_n_layers=1  params_unfrozen=12
+[setup] building first batch to infer hidden dim...
+[train] first batch: {'input_ids': 'tensor(32, 1024) torch.int64', 'attention_mask': 'tensor(32, 1024) torch.int64', 'start_idx': 'tensor(32,) torch.int64', 'end_idx': 'tensor(32,) torch.int64', 'win_start': 'tensor(32,) torch.int64', 'win_end': 'tensor(32,) torch.int64', 'answer_text': 'list(len=32)'}
+[model] hidden_dim D=512
+[setup] starting training...
+[gpu] seq.device=cuda:0  alloc=165.2MB  reserved=1168.1MB
+[train] step 10 fetch=0.1ms fw=4.0ms loss=6.8798
+[train] step 10 loss=6.8798 lr=1.10e-04 dt=3.77s seen=320
+[train] step 20 fetch=0.1ms fw=3.4ms loss=6.7544
+[train] step 20 loss=6.7544 lr=2.10e-04 dt=2.12s seen=640
+[train] step 30 fetch=0.1ms fw=3.6ms loss=6.6230
+[train] step 30 loss=6.6230 lr=3.10e-04 dt=2.50s seen=960
+[train] step 40 fetch=0.1ms fw=3.6ms loss=6.4236
+[train] step 40 loss=6.4236 lr=4.10e-04 dt=2.70s seen=1280
+[train] step 50 fetch=0.1ms fw=3.4ms loss=6.2095
+[train] step 50 loss=6.2095 lr=5.10e-04 dt=2.71s seen=1600
+[train] step 60 fetch=0.1ms fw=3.6ms loss=5.9743
+[train] step 60 loss=5.9743 lr=6.10e-04 dt=2.55s seen=1920
+[train] step 70 fetch=0.1ms fw=3.4ms loss=5.7155
+[train] step 70 loss=5.7155 lr=7.10e-04 dt=2.52s seen=2240
+[train] step 80 fetch=0.1ms fw=3.5ms loss=5.4515
+[train] step 80 loss=5.4515 lr=8.10e-04 dt=2.64s seen=2560
+[train] step 90 fetch=0.1ms fw=3.9ms loss=5.1862
+[train] step 90 loss=5.1862 lr=9.10e-04 dt=2.49s seen=2880
+[train] step 100 fetch=0.1ms fw=3.4ms loss=4.9480
+[train] step 100 loss=4.9480 lr=1.00e-03 dt=2.19s seen=3200
+[train] step 110 fetch=0.1ms fw=3.6ms loss=4.7261
+[train] step 110 loss=4.7261 lr=1.00e-03 dt=3.05s seen=3520
+[train] step 120 fetch=0.1ms fw=3.4ms loss=4.5248
+[train] step 120 loss=4.5248 lr=9.99e-04 dt=2.26s seen=3840
+[train] step 130 fetch=0.1ms fw=3.5ms loss=4.3402
+[train] step 130 loss=4.3402 lr=9.97e-04 dt=2.91s seen=4160
+[train] step 140 fetch=0.1ms fw=3.4ms loss=4.1797
+[train] step 140 loss=4.1797 lr=9.95e-04 dt=2.22s seen=4480
+[train] step 150 fetch=0.1ms fw=3.4ms loss=4.0345
+[train] step 150 loss=4.0345 lr=9.92e-04 dt=2.93s seen=4800
+[train] step 160 fetch=0.1ms fw=3.5ms loss=3.9039
+[train] step 160 loss=3.9039 lr=9.89e-04 dt=2.73s seen=5120
+[train] step 170 fetch=0.1ms fw=3.7ms loss=3.7847
+[train] step 170 loss=3.7847 lr=9.85e-04 dt=2.81s seen=5440
+[train] step 180 fetch=0.1ms fw=3.5ms loss=3.6825
+[train] step 180 loss=3.6825 lr=9.81e-04 dt=2.17s seen=5760
+[train] step 190 fetch=0.1ms fw=3.3ms loss=3.5952
+[train] step 190 loss=3.5952 lr=9.76e-04 dt=2.63s seen=6080
+[train] step 200 fetch=0.1ms fw=15.1ms loss=3.5121
+[train] step 200 loss=3.5121 lr=9.70e-04 dt=2.47s seen=6400
+[epoch 1] train_loss=3.5121  val_loss=1.8260  EM=0.294  F1=0.714
+[ckpt] Saved best span head → checkpoints/tab_qa_adult/tab_qa_span_head.pth
+[gpu] seq.device=cuda:0  alloc=165.2MB  reserved=1170.2MB
+[train] step 10 fetch=0.1ms fw=3.4ms loss=1.9112
+[train] step 10 loss=1.9112 lr=9.64e-04 dt=4.00s seen=320
+[train] step 20 fetch=0.1ms fw=3.3ms loss=1.9751
+[train] step 20 loss=1.9751 lr=9.57e-04 dt=2.16s seen=640
+[train] step 30 fetch=0.1ms fw=3.8ms loss=1.9418
+[train] step 30 loss=1.9418 lr=9.49e-04 dt=2.80s seen=960
+[train] step 40 fetch=0.1ms fw=3.4ms loss=1.9339
+[train] step 40 loss=1.9339 lr=9.41e-04 dt=2.79s seen=1280
+[train] step 50 fetch=0.1ms fw=3.6ms loss=1.9072
+[train] step 50 loss=1.9072 lr=9.33e-04 dt=2.99s seen=1600
+[train] step 60 fetch=0.1ms fw=3.9ms loss=1.8975
+[train] step 60 loss=1.8975 lr=9.24e-04 dt=2.13s seen=1920
+[train] step 70 fetch=0.1ms fw=4.0ms loss=1.8913
+[train] step 70 loss=1.8913 lr=9.15e-04 dt=3.01s seen=2240
+[train] step 80 fetch=0.9ms fw=23.8ms loss=1.8813
+[train] step 80 loss=1.8813 lr=9.05e-04 dt=2.56s seen=2560
+[train] step 90 fetch=0.1ms fw=3.5ms loss=1.8905
+[train] step 90 loss=1.8905 lr=8.94e-04 dt=2.88s seen=2880
+[train] step 100 fetch=0.1ms fw=10.1ms loss=1.8881
+[train] step 100 loss=1.8881 lr=8.83e-04 dt=2.27s seen=3200
+[train] step 110 fetch=0.1ms fw=3.7ms loss=1.8768
+[train] step 110 loss=1.8768 lr=8.72e-04 dt=3.08s seen=3520
+[train] step 120 fetch=0.1ms fw=3.8ms loss=1.8861
+[train] step 120 loss=1.8861 lr=8.60e-04 dt=2.46s seen=3840
+[train] step 130 fetch=0.1ms fw=3.6ms loss=1.8830
+[train] step 130 loss=1.8830 lr=8.47e-04 dt=2.66s seen=4160
+[train] step 140 fetch=0.1ms fw=3.7ms loss=1.8737
+[train] step 140 loss=1.8737 lr=8.35e-04 dt=2.50s seen=4480
+[train] step 150 fetch=0.1ms fw=3.4ms loss=1.8722
+[train] step 150 loss=1.8722 lr=8.21e-04 dt=2.74s seen=4800
+[train] step 160 fetch=0.1ms fw=3.6ms loss=1.8749
+[train] step 160 loss=1.8749 lr=8.08e-04 dt=2.24s seen=5120
+[train] step 170 fetch=0.1ms fw=3.5ms loss=1.8689
+[train] step 170 loss=1.8689 lr=7.94e-04 dt=3.27s seen=5440
+[train] step 180 fetch=0.1ms fw=3.7ms loss=1.8687
+[train] step 180 loss=1.8687 lr=7.80e-04 dt=2.58s seen=5760
+[train] step 190 fetch=0.1ms fw=3.7ms loss=1.8704
+[train] step 190 loss=1.8704 lr=7.65e-04 dt=2.44s seen=6080
+[train] step 200 fetch=0.1ms fw=3.7ms loss=1.8726
+[train] step 200 loss=1.8726 lr=7.50e-04 dt=2.73s seen=6400
+[epoch 2] train_loss=1.8726  val_loss=1.6947  EM=0.338  F1=0.791
+[ckpt] Saved best span head → checkpoints/tab_qa_adult/tab_qa_span_head.pth
+[gpu] seq.device=cuda:0  alloc=165.2MB  reserved=1170.2MB
+[train] step 10 fetch=0.1ms fw=3.4ms loss=1.8066
+[train] step 10 loss=1.8066 lr=7.35e-04 dt=3.97s seen=320
+[train] step 20 fetch=0.1ms fw=3.3ms loss=1.8142
+[train] step 20 loss=1.8142 lr=7.19e-04 dt=2.20s seen=640
+[train] step 30 fetch=0.1ms fw=3.4ms loss=1.8641
+[train] step 30 loss=1.8641 lr=7.03e-04 dt=2.63s seen=960
+[train] step 40 fetch=0.3ms fw=3.7ms loss=1.8258
+[train] step 40 loss=1.8258 lr=6.87e-04 dt=3.16s seen=1280
+[train] step 50 fetch=0.1ms fw=3.4ms loss=1.8301
+[train] step 50 loss=1.8301 lr=6.71e-04 dt=2.57s seen=1600
+[train] step 60 fetch=0.1ms fw=3.4ms loss=1.8414
+[train] step 60 loss=1.8414 lr=6.55e-04 dt=2.58s seen=1920
+[train] step 70 fetch=0.2ms fw=3.8ms loss=1.8467
+[train] step 70 loss=1.8467 lr=6.38e-04 dt=2.56s seen=2240
+[train] step 80 fetch=0.1ms fw=3.7ms loss=1.8716
+[train] step 80 loss=1.8716 lr=6.21e-04 dt=2.47s seen=2560
+[train] step 90 fetch=0.1ms fw=3.7ms loss=1.8632
+[train] step 90 loss=1.8632 lr=6.04e-04 dt=2.54s seen=2880
+[train] step 100 fetch=0.1ms fw=3.4ms loss=1.8629
+[train] step 100 loss=1.8629 lr=5.87e-04 dt=2.78s seen=3200
+[train] step 110 fetch=0.1ms fw=3.4ms loss=1.8622
+[train] step 110 loss=1.8622 lr=5.70e-04 dt=2.86s seen=3520
+[train] step 120 fetch=0.1ms fw=3.5ms loss=1.8613
+[train] step 120 loss=1.8613 lr=5.52e-04 dt=2.20s seen=3840
+[train] step 130 fetch=0.1ms fw=3.5ms loss=1.8638
+[train] step 130 loss=1.8638 lr=5.35e-04 dt=2.45s seen=4160
+[train] step 140 fetch=0.1ms fw=3.3ms loss=1.8570
+[train] step 140 loss=1.8570 lr=5.17e-04 dt=2.85s seen=4480
+[train] step 150 fetch=0.2ms fw=5.2ms loss=1.8585
+[train] step 150 loss=1.8585 lr=5.00e-04 dt=2.78s seen=4800
+[train] step 160 fetch=0.1ms fw=3.3ms loss=1.8516
+[train] step 160 loss=1.8516 lr=4.83e-04 dt=2.56s seen=5120
+[train] step 170 fetch=0.1ms fw=3.8ms loss=1.8525
+[train] step 170 loss=1.8525 lr=4.65e-04 dt=3.25s seen=5440
+[train] step 180 fetch=0.2ms fw=3.8ms loss=1.8609
+[train] step 180 loss=1.8609 lr=4.48e-04 dt=2.21s seen=5760
+[train] step 190 fetch=0.1ms fw=3.8ms loss=1.8634
+[train] step 190 loss=1.8634 lr=4.30e-04 dt=2.45s seen=6080
+[train] step 200 fetch=0.1ms fw=3.5ms loss=1.8636
+[train] step 200 loss=1.8636 lr=4.13e-04 dt=2.82s seen=6400
+[epoch 3] train_loss=1.8636  val_loss=1.5882  EM=0.344  F1=0.758
+[ckpt] Saved best span head → checkpoints/tab_qa_adult/tab_qa_span_head.pth
+[gpu] seq.device=cuda:0  alloc=165.2MB  reserved=1170.2MB
+[train] step 10 fetch=0.1ms fw=3.4ms loss=1.7432
+[train] step 10 loss=1.7432 lr=3.96e-04 dt=4.13s seen=320
+[train] step 20 fetch=0.1ms fw=3.4ms loss=1.8253
+[train] step 20 loss=1.8253 lr=3.79e-04 dt=2.18s seen=640
+[train] step 30 fetch=0.1ms fw=3.5ms loss=1.8207
+[train] step 30 loss=1.8207 lr=3.62e-04 dt=2.99s seen=960
+[train] step 40 fetch=13.0ms fw=3.4ms loss=1.8393
+[train] step 40 loss=1.8393 lr=3.45e-04 dt=2.17s seen=1280
+[train] step 50 fetch=0.1ms fw=3.7ms loss=1.8596
+[train] step 50 loss=1.8596 lr=3.29e-04 dt=2.59s seen=1600
+[train] step 60 fetch=0.1ms fw=3.7ms loss=1.8540
+[train] step 60 loss=1.8540 lr=3.13e-04 dt=2.17s seen=1920
+[train] step 70 fetch=0.1ms fw=3.6ms loss=1.8533
+[train] step 70 loss=1.8533 lr=2.97e-04 dt=2.79s seen=2240
+[train] step 80 fetch=0.2ms fw=3.9ms loss=1.8543
+[train] step 80 loss=1.8543 lr=2.81e-04 dt=2.44s seen=2560
+[train] step 90 fetch=0.1ms fw=3.5ms loss=1.8569
+[train] step 90 loss=1.8569 lr=2.65e-04 dt=2.85s seen=2880
+[train] step 100 fetch=0.1ms fw=3.4ms loss=1.8575
+[train] step 100 loss=1.8575 lr=2.50e-04 dt=2.87s seen=3200
+[train] step 110 fetch=0.1ms fw=3.8ms loss=1.8451
+[train] step 110 loss=1.8451 lr=2.35e-04 dt=2.83s seen=3520
+[train] step 120 fetch=0.1ms fw=3.7ms loss=1.8441
+[train] step 120 loss=1.8441 lr=2.20e-04 dt=2.79s seen=3840
+[train] step 130 fetch=0.1ms fw=3.5ms loss=1.8478
+[train] step 130 loss=1.8478 lr=2.06e-04 dt=3.06s seen=4160
+[train] step 140 fetch=0.1ms fw=3.9ms loss=1.8454
+[train] step 140 loss=1.8454 lr=1.92e-04 dt=2.19s seen=4480
+[train] step 150 fetch=0.2ms fw=3.8ms loss=1.8499
+[train] step 150 loss=1.8499 lr=1.79e-04 dt=2.85s seen=4800
+[train] step 160 fetch=0.1ms fw=3.7ms loss=1.8528
+[train] step 160 loss=1.8528 lr=1.65e-04 dt=2.23s seen=5120
+[train] step 170 fetch=0.1ms fw=3.6ms loss=1.8511
+[train] step 170 loss=1.8511 lr=1.53e-04 dt=2.78s seen=5440
+[train] step 180 fetch=0.1ms fw=3.6ms loss=1.8502
+[train] step 180 loss=1.8502 lr=1.40e-04 dt=3.85s seen=5760
+[train] step 190 fetch=0.1ms fw=3.5ms loss=1.8541
+[train] step 190 loss=1.8541 lr=1.28e-04 dt=2.69s seen=6080
+[train] step 200 fetch=0.1ms fw=3.7ms loss=1.8535
+[train] step 200 loss=1.8535 lr=1.17e-04 dt=3.05s seen=6400
+[epoch 4] train_loss=1.8535  val_loss=1.5929  EM=0.350  F1=0.823
+[ckpt] Saved best span head → checkpoints/tab_qa_adult/tab_qa_span_head.pth
+[gpu] seq.device=cuda:0  alloc=165.2MB  reserved=1170.2MB
+[train] step 10 fetch=0.1ms fw=3.5ms loss=1.9621
+[train] step 10 loss=1.9621 lr=1.06e-04 dt=3.90s seen=320
+[train] step 20 fetch=0.1ms fw=3.6ms loss=1.9333
+[train] step 20 loss=1.9333 lr=9.55e-05 dt=2.63s seen=640
+[train] step 30 fetch=0.1ms fw=3.4ms loss=1.9340
+[train] step 30 loss=1.9340 lr=8.55e-05 dt=2.91s seen=960
+[train] step 40 fetch=0.2ms fw=3.9ms loss=1.9115
+[train] step 40 loss=1.9115 lr=7.60e-05 dt=3.15s seen=1280
+[train] step 50 fetch=0.1ms fw=3.7ms loss=1.8983
+[train] step 50 loss=1.8983 lr=6.70e-05 dt=2.37s seen=1600
+[train] step 60 fetch=0.1ms fw=3.5ms loss=1.8999
+[train] step 60 loss=1.8999 lr=5.85e-05 dt=3.77s seen=1920
+[train] step 70 fetch=0.1ms fw=3.5ms loss=1.8985
+[train] step 70 loss=1.8985 lr=5.06e-05 dt=2.59s seen=2240
+[train] step 80 fetch=0.1ms fw=3.4ms loss=1.8912
+[train] step 80 loss=1.8912 lr=4.32e-05 dt=2.54s seen=2560
+[train] step 90 fetch=0.2ms fw=3.8ms loss=1.8702
+[train] step 90 loss=1.8702 lr=3.64e-05 dt=2.33s seen=2880
+[train] step 100 fetch=0.1ms fw=3.7ms loss=1.8619
+[train] step 100 loss=1.8619 lr=3.02e-05 dt=3.51s seen=3200
+[train] step 110 fetch=0.1ms fw=3.3ms loss=1.8660
+[train] step 110 loss=1.8660 lr=2.45e-05 dt=2.84s seen=3520
+[train] step 120 fetch=0.1ms fw=3.4ms loss=1.8573
+[train] step 120 loss=1.8573 lr=1.94e-05 dt=3.41s seen=3840
+[train] step 130 fetch=0.1ms fw=3.3ms loss=1.8562
+[train] step 130 loss=1.8562 lr=1.49e-05 dt=3.21s seen=4160
+[train] step 140 fetch=0.1ms fw=3.4ms loss=1.8533
+[train] step 140 loss=1.8533 lr=1.09e-05 dt=2.75s seen=4480
+[train] step 150 fetch=0.1ms fw=3.4ms loss=1.8499
+[train] step 150 loss=1.8499 lr=7.60e-06 dt=2.65s seen=4800
+[train] step 160 fetch=0.1ms fw=3.5ms loss=1.8506
+[train] step 160 loss=1.8506 lr=4.87e-06 dt=3.24s seen=5120
+[train] step 170 fetch=0.1ms fw=3.9ms loss=1.8510
+[train] step 170 loss=1.8510 lr=2.74e-06 dt=2.71s seen=5440
+[train] step 180 fetch=0.2ms fw=3.5ms loss=1.8444
+[train] step 180 loss=1.8444 lr=1.22e-06 dt=3.49s seen=5760
+[train] step 190 fetch=0.1ms fw=3.3ms loss=1.8442
+[train] step 190 loss=1.8442 lr=3.05e-07 dt=2.28s seen=6080
+[train] step 200 fetch=0.1ms fw=3.4ms loss=1.8500
+[train] step 200 loss=1.8500 lr=0.00e+00 dt=3.32s seen=6400
+[epoch 5] train_loss=1.8500  val_loss=1.7407  EM=0.294  F1=0.727
+[ckpt] Saved last span head → checkpoints/tab_qa_adult/last_head.pth

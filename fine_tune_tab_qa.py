@@ -17,13 +17,13 @@ if __name__ == "__main__":
     cfg.src_max_len = min(cfg.src_max_len, 1024)
     cfg.train_batch_size = max(16, cfg.train_batch_size)
     cfg.val_batch_size   = 16
-    cfg.train_steps_per_epoch = 50   # fast sanity run
+    cfg.train_steps_per_epoch = 200   # fast sanity run
     cfg.val_steps = 10
     cfg.epochs = 5
     cfg.log_every_n = 10
     cfg.max_selectors = 4
 
-
+    cfg.unfreeze_n_layers = 1
     # Encoder checkpoint you already use
     cfg.init_checkpoint = "checkpoints/V1/model.pth"
 

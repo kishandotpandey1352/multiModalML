@@ -168,37 +168,77 @@ class TableQASynthStream(IterableDataset):
             ex = _choose_example(self.df, self.cfg)
             if ex is None:
                 continue
-            # Serialize table (single row is enough here; for robustness, you could include a small neighborhood)
+
+            # Serialize a single row (schema header optional)
             serial_row, span_map = _serialize_row_for_tableqa(
                 ex["row"], self.cfg.add_schema_header, self.cfg.include_date_decompose
             )
-            # Prepend the query
+            # Build the full prompt (question + row)
             full = f"Q: {ex['query']}\n{serial_row}"
-            # Compute byte span of the target *value token* within the full string:
-            # We search for the column token inside `serial_row` first using span_map, then offset by length of "Q: ...\n"
-            value_span = span_map.get(ex["target_col"])
-            if value_span is None:
+
+            # Token-level span (covers "col=<TAG:val>" or "col=<NULL>")
+            tok_span = span_map.get(ex["target_col"])
+            if tok_span is None:
                 continue
-            q_bytes = (f"Q: {ex['query']}\n").encode("utf-8", "ignore")
-            start = len(q_bytes) + value_span[0]
-            end   = len(q_bytes) + value_span[1]
 
             b = full.encode("utf-8", "ignore")
+            q_bytes = (f"Q: {ex['query']}\n").encode("utf-8", "ignore")
+            q_off = len(q_bytes)
+
+            # --- derive value-only span inside the token ---
+            ti, tj = tok_span  # token byte [start, end] within serial_row inside `full` after q_off
+            ti_full, tj_full = q_off + ti, q_off + tj
+            token_bytes = b[ti_full:tj_full+1]
+
+            # Cases:
+            #   "<NULL>" -> value = "NULL"
+            #   "<TAG:VALUE>" (DATE/NUM/CAT/TXT) -> value between first ":" and next ";" or ">"
+            val_start_off = None
+            val_end_off = None
+            if b"<NULL>" in token_bytes:
+                pos = token_bytes.find(b"NULL")
+                if pos >= 0:
+                    val_start_off = ti_full + pos
+                    val_end_off   = val_start_off + len(b"NULL") - 1
+            else:
+                # find the first ':' after '<'
+                lt = token_bytes.find(b"<")
+                colon = token_bytes.find(b":", lt + 1 if lt >= 0 else 0)
+                if colon >= 0:
+                    # value ends at next ';' (for DATE extra fields) or '>'
+                    semi = token_bytes.find(b";", colon + 1)
+                    gt   = token_bytes.find(b">", colon + 1)
+                    ends = [x for x in [semi, gt] if x >= 0]
+                    if ends:
+                        stop = min(ends)
+                        val_start_off = ti_full + colon + 1
+                        val_end_off   = ti_full + stop - 1
+
+            # Fallback: if we failed to parse value span, skip this example
+            if val_start_off is None or val_end_off is None:
+                continue
+
+            # Byte ids + mask
             ids, attn = _bytes_to_ids(b, self.cfg.src_max_len, self.cfg.pad_token, self.cfg.remap_255_to)
 
-            # clamp spans to max_len
-            if start >= len(b) or end >= len(b):
+            # Clamp spans to max_len and real bytes
+            if val_start_off >= len(b) or val_end_off >= len(b):
                 continue
-            if start >= self.cfg.src_max_len or end >= self.cfg.src_max_len:
+            if val_start_off >= self.cfg.src_max_len or val_end_off >= self.cfg.src_max_len:
                 continue
+            
+            value_text = b[val_start_off:val_end_off+1].decode("utf-8","ignore").strip()
+            ids, attn = _bytes_to_ids(b, self.cfg.src_max_len, self.cfg.pad_token, self.cfg.remap_255_to)
 
             yield {
-                "input_ids": torch.tensor(ids, dtype=torch.long),
-                "attention_mask": torch.tensor(attn, dtype=torch.long),
-                "start_idx": torch.tensor(start, dtype=torch.long),
-                "end_idx": torch.tensor(end, dtype=torch.long),
-                "answer_text": str(ex["row"][ex["target_col"]]),
-            }
+                    "input_ids": torch.tensor(ids, dtype=torch.long),
+                    "attention_mask": torch.tensor(attn, dtype=torch.long),
+                    "start_idx": torch.tensor(val_start_off, dtype=torch.long),
+                    "end_idx": torch.tensor(val_end_off, dtype=torch.long),
+                    "win_start": torch.tensor(ti_full, dtype=torch.long),   # <--- NEW
+                    "win_end":   torch.tensor(tj_full, dtype=torch.long),   # <--- NEW
+                    "answer_text": value_text,
+                }
 
 def _collate_tabqa(batch):
     """

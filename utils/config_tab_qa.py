@@ -24,20 +24,20 @@ class TabQAConfig:
     src_max_len: int = 1024
     pad_token: int = 255
     remap_255_to: int = 254
-    add_schema_header: bool = True
+    add_schema_header: bool = False
     include_date_decompose: bool = True
 
     # ---------- Training ----------
-    epochs: int = 8
-    train_batch_size: int = 24
+    epochs: int = 5
+    train_batch_size: int = 32
     val_batch_size: int = 24
     amp: bool = False
-    lr_head: float = 2e-3
+    lr_head: float = 0.001
     weight_decay: float = 0.01
     clip_grad_norm: float = 1.0
     seed: int = 42
     log_every_n: int = 20
-    train_steps_per_epoch: int = 100   # tweak for speed; e.g., 200 for a quick run
+    train_steps_per_epoch: int = 200   # tweak for speed; e.g., 200 for a quick run
     val_steps: int = 20                # number of validation batches per epoch
 
     # ---------- Encoder init (same pattern you already use) ----------
@@ -49,3 +49,12 @@ class TabQAConfig:
     save_dir: str = "checkpoints/tab_qa"
     save_head_as: str = "tab_qa_span_head.pth"
     csv_log_path: str = "logs/tab_qa.csv"
+    
+    # ---------- Dataloader knobs ----------
+    num_workers_train: int = 4
+    num_workers_val: int = 2
+    prefetch_factor: int = 2
+
+    # ---------- Finetuning knobs ----------
+    unfreeze_n_layers: int = 1        # 0=head-only; try 1–2 for better learning
+    debug_label_check: bool = False    # one-time print to verify spans

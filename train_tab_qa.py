@@ -5,14 +5,15 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
+import re
 import pandas as pd
 from itertools import islice
 
 from utils.config_tab_qa import TabQAConfig
 from data_modules.tabqa_synth import make_loader
 from heads.tabqa_span_head import TabQASpanHead
-
+import math
+from torch.optim.lr_scheduler import LambdaLR
 # ------------------------------
 # AMP compatibility shim (PyTorch <2.0 and >=2.0)
 # ------------------------------
@@ -54,6 +55,35 @@ def to_device_batch(batch, device: str):
         else:
             out[k] = v
     return out
+
+def _unfreeze_last_n_transformer_layers(model: torch.nn.Module, n: int) -> int:
+    """
+    Try to unfreeze the last N transformer blocks based on common name patterns.
+    Returns how many parameter tensors were unfrozen.
+    """
+    if n <= 0:
+        return 0
+    patterns = [re.compile(r'\blayers\.(\d+)\.'),
+                re.compile(r'\bencoder\.layers\.(\d+)\.'),
+                re.compile(r'\btransformer\.layers\.(\d+)\.')]
+    # discover layer indices
+    idxs = set()
+    for name, _ in model.named_parameters():
+        for p in patterns:
+            m = p.search(name)
+            if m:
+                idxs.add(int(m.group(1)))
+    if not idxs:
+        return 0
+    top = sorted(idxs)[-n:]
+    unfrozen = 0
+    for name, p in model.named_parameters():
+        if any(f'.layers.{i}.' in name for i in top) or \
+           any(f'encoder.layers.{i}.' in name for i in top) or \
+           any(f'transformer.layers.{i}.' in name for i in top):
+            p.requires_grad_(True); unfrozen += 1
+    return unfrozen
+
 
 # ------------------------------
 # Encoder loader (your pattern)
@@ -130,6 +160,8 @@ def char_f1(pred: str, gold: str) -> float:
 # Eval / Train
 # ------------------------------
 def evaluate(cfg, encoder, head, loader, device):
+    encoder.eval()
+    head.eval()
     ce = nn.CrossEntropyLoss()
     tot_loss, nitems = 0.0, 0
     all_em, all_f1 = [], []
@@ -143,6 +175,18 @@ def evaluate(cfg, encoder, head, loader, device):
 
             seq = encode_to_sequence(encoder, x, m, device)     # [B,T,D] on device
             start_logits, end_logits = head(seq, m)              # [B,T],[B,T]
+            # Constrain logits to column-token window if provided
+            if "win_start" in batch and "win_end" in batch:
+                T = start_logits.size(1)
+                ar = torch.arange(T, device=start_logits.device).unsqueeze(0)  # [1,T]
+                ws = batch["win_start"].unsqueeze(1)  # [B,1]
+                we = batch["win_end"].unsqueeze(1)    # [B,1]
+                win_mask = (ar >= ws) & (ar <= we)    # True inside allowed window
+                # Also respect attention_mask (ignore pads)
+                if "attention_mask" in batch:
+                    win_mask = win_mask & (batch["attention_mask"].bool())
+                start_logits = start_logits.masked_fill(~win_mask, -1e9)
+                end_logits   = end_logits.masked_fill(~win_mask, -1e9)
 
             loss = ce(start_logits, s_idx) + ce(end_logits, e_idx)
             tot_loss += loss.item() * x.size(0)
@@ -170,8 +214,11 @@ def evaluate(cfg, encoder, head, loader, device):
             "val_em": float(np.mean(all_em) if all_em else 0.0),
             "val_f1": float(np.mean(all_f1) if all_f1 else 0.0)}
 
-def train_epoch(cfg, encoder, head, loader, device, scaler, optim):
-    encoder.requires_grad_(False)
+def train_epoch(cfg, encoder, head, loader, device, scaler, optim, scheduler, global_step):
+    if any(p.requires_grad for p in encoder.parameters()):
+        encoder.train()
+    else:
+        encoder.eval()
     head.train()
     ce = nn.CrossEntropyLoss()
     running, seen = 0.0, 0
@@ -190,6 +237,19 @@ def train_epoch(cfg, encoder, head, loader, device, scaler, optim):
         with autocast_ctx(cfg.amp and device == "cuda", device_type="cuda"):
             seq = encode_to_sequence(encoder, x, m, device)
             start_logits, end_logits = head(seq, m)
+            # Constrain logits to column-token window if provided
+            if "win_start" in batch and "win_end" in batch:
+                T = start_logits.size(1)
+                ar = torch.arange(T, device=start_logits.device).unsqueeze(0)  # [1,T]
+                ws = batch["win_start"].unsqueeze(1)  # [B,1]
+                we = batch["win_end"].unsqueeze(1)    # [B,1]
+                win_mask = (ar >= ws) & (ar <= we)    # True inside allowed window
+                # Also respect attention_mask (ignore pads)
+                if "attention_mask" in batch:
+                    win_mask = win_mask & (batch["attention_mask"].bool())
+                start_logits = start_logits.masked_fill(~win_mask, -1e9)
+                end_logits   = end_logits.masked_fill(~win_mask, -1e9)
+                
             loss = ce(start_logits, s_idx) + ce(end_logits, e_idx)
         fw_dt = time.time() - t_fw
 
@@ -203,6 +263,10 @@ def train_epoch(cfg, encoder, head, loader, device, scaler, optim):
             torch.nn.utils.clip_grad_norm_(head.parameters(), cfg.clip_grad_norm)
             optim.step()
 
+        # <-- advance LR schedule per batch
+        scheduler.step()
+        global_step += 1
+
         running += loss.item() * x.size(0); seen += x.size(0)
 
         if device == "cuda" and step == 1:
@@ -215,9 +279,13 @@ def train_epoch(cfg, encoder, head, loader, device, scaler, optim):
             cur_loss = running / max(1, seen)
             # print(f"[train] step {step} loss={cur_loss:.4f} dt={dt:.2f}s seen={seen}")
             print(f"[train] step {step} fetch={fetch_dt*1000:.1f}ms fw={fw_dt*1000:.1f}ms loss={running/max(1,seen):.4f}")
+            lr_now = optim.param_groups[0]["lr"]
+            print(f"[train] step {step} loss={cur_loss:.4f} lr={lr_now:.2e} dt={dt:.2f}s seen={seen}")
 
 
-    return running / max(1, seen)
+
+
+    return running / max(1, seen), global_step
 
 # ------------------------------
 # Main
@@ -245,10 +313,25 @@ def main(cfg: TabQAConfig, dataframe: Optional["pd.DataFrame"]=None):
 
     # Encoder
     encoder = load_shared_encoder(cfg.init_checkpoint, device, cfg)
-
+    # Freeze-all, then optionally unfreeze top-N blocks
+    for p in encoder.parameters():
+        p.requires_grad_(False)
+    n_unfrozen = _unfreeze_last_n_transformer_layers(encoder, getattr(cfg, "unfreeze_n_layers", 0))
+    print(f"[encoder] unfreeze_n_layers={getattr(cfg, 'unfreeze_n_layers', 0)}  params_unfrozen={n_unfrozen}")
+    encoder.train() if n_unfrozen > 0 else encoder.eval()
+    
     # Infer hidden dim from a real batch
     print("[setup] building first batch to infer hidden dim...", flush=True)
     first = next(iter(train_loader))
+    if getattr(cfg, "debug_label_check", False):
+        for k in range(min(5, first["input_ids"].shape[0])):
+            ids = first["input_ids"][k].tolist()
+            mask_len = int(first["attention_mask"][k].sum().item())
+            bb = bytes([(cfg.remap_255_to if t==cfg.pad_token else t) for t in ids[:mask_len]])
+            s, e = int(first["start_idx"][k]), int(first["end_idx"][k])
+            gold_span = bb[max(0,s):min(mask_len, e+1)].decode("utf-8","ignore")
+            print(f"[label-check] {k}: gold='{first['answer_text'][k]}' span='{gold_span}' s={s} e={e}")
+    
     print("[train] first batch:", {k: _nice_shape(v) for k, v in first.items()})
     with torch.no_grad():
         D = encode_to_sequence(encoder,
@@ -259,10 +342,27 @@ def main(cfg: TabQAConfig, dataframe: Optional["pd.DataFrame"]=None):
     print("[setup] starting training...", flush=True)
 
     # Head & optim
+    # Head & optim (optimize head + any unfrozen encoder params)
     head = TabQASpanHead(hidden_dim=D).to(device)
-    optim_head = optim.AdamW(head.parameters(), lr=cfg.lr_head, weight_decay=cfg.weight_decay)
-    scaler = GradScaler(enabled=(cfg.amp and device == "cuda"))
 
+    trainable = list(head.parameters()) + [p for p in encoder.parameters() if p.requires_grad]
+    # a slightly smaller LR is safer when encoder is partially unfrozen
+    lr = min(cfg.lr_head, 1e-3) if any(p.requires_grad for p in encoder.parameters()) else cfg.lr_head
+    optim_head = optim.AdamW(trainable, lr=lr, weight_decay=cfg.weight_decay)
+
+    scaler = GradScaler(enabled=(cfg.amp and device == "cuda"))
+    # ---- LR scheduler: 10% warmup, then cosine decay over all steps ----
+    warmup = int(0.1 * cfg.epochs * cfg.train_steps_per_epoch)
+    total  = max(1, cfg.epochs * cfg.train_steps_per_epoch)
+
+    def lr_lambda(step):
+        if step < warmup:
+            return float(step + 1) / max(1, warmup)
+        p = float(step - warmup) / max(1, total - warmup)
+        return 0.5 * (1.0 + math.cos(math.pi * p))  # cosine
+
+    scheduler = LambdaLR(optim_head, lr_lambda)
+    global_step = 0
     # CSV log
     if cfg.csv_log_path:
         import csv
@@ -272,7 +372,7 @@ def main(cfg: TabQAConfig, dataframe: Optional["pd.DataFrame"]=None):
     # Train loop
     best_score = -1.0
     for epoch in range(1, cfg.epochs + 1):
-        tr = train_epoch(cfg, encoder, head, train_loader, device, scaler, optim_head)
+        tr, global_step = train_epoch(cfg, encoder, head, train_loader, device, scaler, optim_head, scheduler, global_step)
         val = evaluate(cfg, encoder, head, val_loader, device)
         print(f"[epoch {epoch}] train_loss={tr:.4f}  val_loss={val['val_loss']:.4f}  "
               f"EM={val['val_em']:.3f}  F1={val['val_f1']:.3f}")
