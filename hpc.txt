@@ -110,3 +110,17 @@ sbatch --chdir=/users/acp24kp/finetuning/multiModalML \
 srun --jobid=7689719 nvidia-smi
 squeue -j 7689719
 
+#table idx fine tuning
+# 1- train
+python fine_tune_tab_idxqa.py
+
+# 2- predict (after training)
+python predict_tab_idxqa.py
+
+#### Evaluation
+python predict_tab_bin_demo.py
+python predict_tab_bin_demo.py --head_ckpt /users/acp24kp/finetuning/multiModalML/checkpoints/tab_bin/tab_bin_head.pth --n-batches 50 --threshold 0.5
+
+python predict_tab_qa_demo.py
+python predict_tab_idxqa_demo.py
+

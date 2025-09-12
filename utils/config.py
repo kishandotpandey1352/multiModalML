@@ -7,7 +7,7 @@ class TrainingConfig:
     task: str = "agnews"
     use_hf: bool = True
     hf_val_split: float = 0.05
-    max_len: int = 1024
+    max_len: int = 4096
     pad_token: int = 255
     num_classes: int = 4
 
@@ -21,7 +21,7 @@ class TrainingConfig:
     embed_dim: int = 512
     nhead: int = 8
     num_layers: int = 6
-    dim_feedforward: int = 512
+    dim_feedforward: int = 2048
     dropout: float = 0.1
 
     # Train

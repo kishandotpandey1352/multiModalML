@@ -13,26 +13,26 @@ class AudioClsConfig:
     split_train = "train"
     use_hf_streaming: bool = True
     verification_no_checks: bool = True
-    stream_take: int | None = None     # e.g., 20000 to cap streamed examples
+    stream_take: int | None = 128    # e.g., 20000 to cap streamed examples
 
     # Columns
     audio_field = "audio"
     label_field = "target" 
 
     # Audio prep
-    sample_rate: int = 44100
-    max_secs    = 5.0             # 1s clips fit well
+    sample_rate: int = 8000
+    max_secs    = 0.25             # 1s clips fit well
     random_offset_crop: bool = True
     use_augs: bool = True
 
     # Byte tokenizer budget
-    src_max_len: int = 1024            # 1s @16kHz int16 -> 32kB; we cap at 1024 tokens
+    src_max_len: int = 4096     # 1s @16kHz int16 -> 32kB; we cap at 1024 tokens
     pad_token: int = 255
     remap_255_to: int = 254            # avoid pad collision
-
+    byte_stride = 2
     # Runtime
-    batch_size: int = 128
-    val_batch_size: int = 256
+    batch_size: int = 2
+    val_batch_size: int = 2
     num_workers: int = 0
     pin_memory: bool = False
     seed: int = 42
