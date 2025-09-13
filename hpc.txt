@@ -124,3 +124,38 @@ python predict_tab_bin_demo.py --head_ckpt /users/acp24kp/finetuning/multiModalM
 python predict_tab_qa_demo.py
 python predict_tab_idxqa_demo.py
 
+#### Evaluation on tab QA
+python predict_tab_qa_demo.py \
+  --csv_path data/adult.csv \
+  --shared_ckpt /users/acp24kp/finetuning/multiModalML/checkpoints/V1/model.pth \
+  --head_ckpt   /users/acp24kp/finetuning/multiModalML/checkpoints/tab_qa_adult/tab_qa_span_head.pth \
+  --limit 500
+
+python predict_tab_qa_demo.py \
+  --csv_path data/adult.csv \
+  --shared_ckpt /users/acp24kp/finetuning/multiModalML/checkpoints/V1/model.pth \
+  --head_ckpt   /users/acp24kp/finetuning/multiModalML/checkpoints/tab_qa_adult/tab_qa_span_head.pth \
+  --limit 500 \
+  --batch_size 64 \
+  --max_answer_bytes 48 \
+  --dump_csv tabqa_eval_results.csv
+
+python predict_tab_qa_demo.py \
+  --csv_path data/adult.csv \
+  --shared_ckpt /users/acp24kp/finetuning/multiModalML/checkpoints/V1/model.pth \
+  --head_ckpt   /users/acp24kp/finetuning/multiModalML/checkpoints/tab_qa_adult/tab_qa_span_head.pth \
+  --limit 500 \
+  --batch_size 64 \
+  --mask_mode target_only \
+  --max_answer_bytes 24
+
+python predict_tab_qa_demo.py \
+  --csv_path data/adult.csv \
+  --shared_ckpt /users/acp24kp/finetuning/multiModalML/checkpoints/V1/model.pth \
+  --head_ckpt   /users/acp24kp/finetuning/multiModalML/checkpoints/tab_qa_adult/tab_qa_span_head.pth \
+  --limit 500 --batch_size 64 \
+  --mask_mode target_only --max_answer_bytes 24 \
+  --snap_to_value --length_bias 0.02
+
+
+

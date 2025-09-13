@@ -136,9 +136,8 @@ def _choose_example(df: pd.DataFrame, cfg) -> Optional[Dict[str, Any]]:
             # pick one non-target selector to phrase the question
             cand = [c for c in selector_pool if c != target_col]
             sel_list = cand[:1] if cand else []
-        conds = " and ".join([f"{s} = {row[s]}" for s in sel_list]) if sel_list else "the selected row"
+        conds = " and ".join([f"{s} = {row[s]}" for s in sel_list])
         query = f"What is the {target_col} for {conds}?"
-        
         return {"query": query, "row": row, "target_col": target_col}
         
 class TableQASynthStream(IterableDataset):
